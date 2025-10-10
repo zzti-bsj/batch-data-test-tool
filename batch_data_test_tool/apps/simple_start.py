@@ -3,10 +3,10 @@ import sys
 import json
 import pandas as pd
 import ipywidgets as widgets
-from tools.data_processing import read_dataframe_from_file, clean_dataframe_for_json
-from tools.http_request import sync_http_request, parse_http_stream_false_response, parse_http_stream_true_response
-from tools.http_response import structure_request_params, parse_recall_result_special
-from tools import DATA_PROCESSING_METHODS
+from ..tools.data_processing import read_dataframe_from_file, clean_dataframe_for_json
+from ..tools.http_request import sync_http_request, parse_http_stream_false_response, parse_http_stream_true_response
+from ..tools.http_response import structure_request_params, parse_recall_result_special
+from ..tools import DATA_PROCESSING_METHODS
 from IPython.display import display
 
 # 全局数据
@@ -15,7 +15,7 @@ result_data = None  # 存储批量处理的结果
 
 # HTTP请求配置
 api_url_input = widgets.Text(
-    value='',
+    value='http://imwl-uat.immotors.com/api/gateway/v6/askRobot/flow?robotId=50',
     placeholder='请输入API地址',
     description='API地址:',
     style={'description_width': 'initial'}
