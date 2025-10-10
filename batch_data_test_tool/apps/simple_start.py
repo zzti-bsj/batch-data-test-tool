@@ -15,7 +15,7 @@ result_data = None  # 存储批量处理的结果
 
 # HTTP请求配置
 api_url_input = widgets.Text(
-    value='http://imwl-uat.immotors.com/api/gateway/v6/askRobot/flow?robotId=50',
+    value='',
     placeholder='请输入API地址',
     description='API地址:',
     style={'description_width': 'initial'}
