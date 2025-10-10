@@ -1,0 +1,7 @@
+pydantic
+pandas
+numpy
+requests
+json-repair
+openpyxl
+ipywidgets
