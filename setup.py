@@ -24,7 +24,7 @@ def read_requirements():
 
 setup(
     name="batch-data-test-tool",
-    version="1.0.0",
+    version="1.1.0",
     author="zzti-bsj",
     author_email="otnw_bsj@163.com",
     description="一个用于批量处理数据并发送HTTP请求的Python工具包",
@@ -64,7 +64,7 @@ setup(
     },
     entry_points={
         "console_scripts": [
-            "batch-test-tool=batch_data_test_tool.apps.simple_start:simple_start",
+            "batch-test-tool=batch_data_test_tool.apps.cola:cola_start",
         ],
     },
     include_package_data=True,

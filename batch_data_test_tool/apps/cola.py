@@ -19,7 +19,7 @@ result_data = None  # 存储批量处理的结果
 api_config_name_list = get_api_url_name_list()
 step000_api_config_selector = widgets.Dropdown(
     options=api_config_name_list,
-    value=api_config_name_list[0],
+    value=None,
     description='选择接口配置',
     disabled=False,
 )
@@ -32,7 +32,7 @@ data_base_dir = 'data'
 files = os.listdir(data_base_dir)
 step001_dropdown = widgets.Dropdown(
     options=files,
-    value=files[0],
+    value=None,
     description='选择数据文件',
     disabled=False,
 )
@@ -411,7 +411,7 @@ step007_button = widgets.Button(
 
 
 
-def simple_start():
+def cola_start():
     step002_output.clear_output()
     step003_output.clear_output()
     step004_1_output.clear_output()

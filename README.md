@@ -8,24 +8,65 @@
 - 🔄 **批量处理**: 批量发送HTTP请求并处理响应
 - 🎛️ **交互式界面**: 基于Jupyter Widgets的友好用户界面
 - 📈 **数据预览**: 实时预览处理结果
-- 💾 **结果导出**: 支持将处理结果导出为Excel文件
-- 🛠️ **灵活配置**: 支持自定义API端点和请求参数
+- 💾 **智能保存**: 支持自定义文件名，自动保存到output目录
+- 🛠️ **灵活配置**: 支持JSON配置文件，动态选择API接口
+- 🔧 **参数映射**: 支持数据列与API参数的动态映射
+- ⚡ **实时更新**: API配置切换时自动更新参数选择器
 
 ## 安装
 
+### 基础安装
 ```bash
 pip install batch-data-test-tool
 ```
 
+### 推荐安装（包含JupyterLab）
+```bash
+pip install batch-data-test-tool jupyterlab
+```
+
+> 💡 **推荐使用JupyterLab**：该工具专为Jupyter环境设计，提供最佳的用户体验
+
 ## 快速开始
 
-### 在Jupyter Notebook中使用
+### 使用前准备
+
+1. **确保data目录存在**
+   ```bash
+   mkdir data
+   ```
+   > ⚠️ 如果data目录不存在，程序会报错
+
+2. **配置config.json**
+   在项目根目录创建`config.json`文件，配置您的API接口：
+   ```json
+   [
+       {
+           "api_name": "我的API接口",
+           "api_url": "http://your-api-endpoint.com/api",
+           "headers": {
+               "Content-Type": "application/json",
+               "User-Agent": "BatchDataTestTool/1.0"
+           },
+           "params": {
+               "conversation_text": "${conversation_text}",
+               "sessionId": "default_session",
+               "userKey": "app-10000"
+           }
+       }
+   ]
+   ```
+
+3. **准备测试数据**
+   将您的CSV或Excel文件放入`data/`目录
+
+### 在JupyterLab中使用
 
 ```python
-from batch_data_test_tool import simple_start
+from batch_data_test_tool import cola_start
 
 # 启动交互式界面
-simple_start()
+cola_start()
 ```
 
 ### 作为命令行工具使用
@@ -34,123 +75,66 @@ simple_start()
 batch-test-tool
 ```
 
-## 使用示例
+## 使用流程
 
-### 1. 基本用法
+### 完整使用步骤
 
-```python
-from batch_data_test_tool import (
-    read_dataframe_from_file,
-    sync_http_request,
-    structure_request_params
-)
-import json
+1. **准备环境**
+   ```bash
+   # 创建必要目录
+   mkdir data
+   
+   # 安装包
+   pip install batch-data-test-tool
+   ```
 
-# 读取数据文件
-df = read_dataframe_from_file('data/test.xlsx')
+2. **配置API接口**
+   创建`config.json`文件，配置您的API：
+   ```json
+   [
+       {
+           "api_name": "我的API接口",
+           "api_url": "http://your-api-endpoint.com/api",
+           "headers": {
+               "Content-Type": "application/json",
+               "User-Agent": "BatchDataTestTool/1.0"
+           },
+           "params": {
+               "conversation_text": "${conversation_text}",
+               "sessionId": "default_session",
+               "userKey": "app-10000"
+           }
+       }
+   ]
+   ```
 
-# 配置API
-api_url = 'http://your-api-endpoint.com/api'
-headers = {
-    "Content-Type": "application/json",
-    "User-Agent": "BatchDataTestTool/1.0"
-}
+3. **准备测试数据**
+   将CSV或Excel文件放入`data/`目录
 
-# 处理单条数据
-input_data = df.iloc[0]['your_column']
-params = structure_request_params(input_data, 'async_sales_qa')
-response = sync_http_request(api_url, json.dumps(params), headers)
-```
+4. **启动JupyterLab**
+   ```bash
+   jupyter lab
+   ```
 
-### 2. 批量处理
+5. **使用工具**
+   ```python
+   from batch_data_test_tool import cola_start
+   cola_start()
+   ```
 
-```python
-from batch_data_test_tool.apps.simple_start import process_batch_http_request
+### 界面操作步骤
 
-# 批量处理数据
-results = process_batch_http_request(
-    df=df,
-    input_field_name='your_column',
-    stream_parser=True,
-    data_processing_methods=[],
-    api_url=api_url,
-    api_type='async_sales_qa',
-    headers=headers
-)
-```
+启动`cola_start()`后，按以下步骤操作：
 
-## API 参考
+1. **Step001: 选择数据文件** - 从`data/`目录选择CSV或Excel文件
+2. **API配置** - 从`config.json`中选择预配置的API接口
+3. **Step002: 读取数据** - 点击"读取数据"按钮加载文件
+4. **Step003: 数据预览** - 查看数据前5行
+5. **Step004: 选择数据列** - 将数据列映射到API参数（自动根据config.json生成）
+6. **Step005: 批量处理** - 发送HTTP请求并处理响应
+7. **Step006: 选择保存列** - 选择要保存的结果列
+8. **Step007: 保存数据** - 自定义文件名保存到`output/`目录
 
-### 核心函数
-
-#### `read_dataframe_from_file(filepath)`
-从文件中读取DataFrame，支持CSV和Excel格式。
-
-**参数:**
-- `filepath` (str): 文件路径
-
-**返回:**
-- `pandas.DataFrame`: 读取的数据
-
-#### `sync_http_request(url, request_json_data, headers)`
-发送同步HTTP请求。
-
-**参数:**
-- `url` (str): 请求URL
-- `request_json_data` (str): JSON格式的请求数据
-- `headers` (dict): 请求头
-
-**返回:**
-- `requests.Response`: HTTP响应对象
-
-#### `structure_request_params(data, api_type)`
-根据API类型构建请求参数。
-
-**参数:**
-- `data`: 输入数据
-- `api_type` (str): API类型
-
-**返回:**
-- `dict`: 构建的请求参数
-
-### 数据预处理
-
-#### `clean_dataframe_for_json(df)`
-清理DataFrame中的NaN值，使其能够正确序列化为JSON。
-
-#### `join_list_with_delimiter(list_data, delimiter)`
-使用分隔符连接列表数据。
-
-## 配置
-
-### API类型配置
-
-目前支持的API类型：
-- `async_sales_qa`: 异步销售问答API
-
-### 数据预处理方法
-
-- `join_list_with_delimiter`: 列表数据连接
-
-## 开发
-
-### 安装开发依赖
-
-```bash
-pip install -e ".[dev]"
-```
-
-### 运行测试
-
-```bash
-pytest
-```
-
-### 代码格式化
-
-```bash
-black batch_data_test_tool/
-```
 
 ## 许可证
 
@@ -162,12 +146,21 @@ black batch_data_test_tool/
 
 ## 更新日志
 
-### v1.0.0
-- 初始版本发布
-- 支持CSV和Excel文件读取
-- 提供交互式Jupyter界面
-- 支持批量HTTP请求处理
-- 支持结果导出
+### v1.1.0
+- ✨ **新增功能**:
+  - 支持JSON配置文件，可配置多个API接口
+  - 动态参数映射，支持数据列与API参数的灵活映射
+  - API配置切换时自动更新参数选择器
+  - 自定义文件名保存功能
+  - 自动创建output目录并保存结果文件
+- 🎯 **界面优化**:
+  - 新增API配置选择器
+  - 动态列选择器，根据API配置自动调整
+  - 自定义文件名输入框
+- 📁 **文件管理**:
+  - 结果文件自动保存到output目录
+  - 支持时间序列命名和自定义命名
+
 
 ## 支持
 

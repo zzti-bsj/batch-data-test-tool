@@ -4,6 +4,6 @@
 包含主要的用户界面和应用程序逻辑。
 """
 
-from .simple_start import simple_start
+from .cola import cola_start
 
-__all__ = ["simple_start"]
+__all__ = ["cola_start"]
