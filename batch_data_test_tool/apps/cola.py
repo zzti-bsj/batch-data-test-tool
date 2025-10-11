@@ -3,35 +3,28 @@ import sys
 import json
 import pandas as pd
 import ipywidgets as widgets
-from tools.data_processing import read_dataframe_from_file, clean_dataframe_for_json
-from tools.http_request import sync_http_request, parse_http_stream_false_response, parse_http_stream_true_response
-from tools.http_response import structure_request_params, parse_recall_result_special
-from tools import DATA_PROCESSING_METHODS
+from ..tools.data_processing import read_dataframe_from_file, clean_dataframe_for_json
+from ..tools.http_request import sync_http_request, parse_http_stream_false_response, parse_http_stream_true_response
+from ..tools.http_response import structure_request_params, parse_recall_result_special
+from ..tools import DATA_PROCESSING_METHODS
+from ..tools.get_config import get_api_url_name_list, get_api_params_placeholder_list_by_name, get_api_url_by_name, get_api_headers_by_name, get_api_params_by_name
 from IPython.display import display
 
 # 全局数据
 df = None
 result_data = None  # 存储批量处理的结果
 
-# HTTP请求配置
-api_url_input = widgets.Text(
-    value='',
-    placeholder='请输入API地址',
-    description='API地址:',
-    style={'description_width': 'initial'}
+
+# Step000. 选择接口配置
+api_config_name_list = get_api_url_name_list()
+step000_api_config_selector = widgets.Dropdown(
+    options=api_config_name_list,
+    value=api_config_name_list[0],
+    description='选择接口配置',
+    disabled=False,
 )
 
-api_type_input = widgets.Text(
-    value='async_sales_qa',
-    placeholder='请输入API类型',
-    description='API类型:',
-    style={'description_width': 'initial'}
-)
 
-headers = {
-    "Content-Type": "application/json",
-    "User-Agent": "BatchDataTestTool/1.0"
-}
 
 
 # Step001. 选择数据
@@ -101,24 +94,65 @@ step003_button = widgets.Button(
 )
 
 # Step004. 列选择器
-column_selector = widgets.Dropdown(
+api_params_placeholder_list = get_api_params_placeholder_list_by_name(api_name=step000_api_config_selector.value)
+print(api_params_placeholder_list)
+columns_selector = [widgets.Dropdown(
     options=[],
     value=None,
-    description='选择列作为输入',
+    description=f'{col}',
     disabled=True,
 )
+for col in api_params_placeholder_list]
+
+# 创建列选择器容器
+columns_container = widgets.VBox([])
+
+# API配置选择器变化事件处理
+def on_api_config_changed(change):
+    """当API配置选择器改变时的处理函数"""
+    global api_params_placeholder_list, columns_selector
+    
+    # 重新获取参数占位符列表
+    api_params_placeholder_list = get_api_params_placeholder_list_by_name(api_name=change['new'])
+    print(f"API配置已切换到: {change['new']}")
+    print(f"新的参数占位符: {api_params_placeholder_list}")
+    
+    # 重新创建列选择器
+    columns_selector = [widgets.Dropdown(
+        options=[],
+        value=None,
+        description=f'{col}',
+        disabled=True,
+    ) for col in api_params_placeholder_list]
+    
+    # 更新容器中的列选择器
+    columns_container.children = columns_selector
+    
+    # 如果已有数据，自动更新列选择器
+    if df is not None:
+        update_columns()
+
+# 绑定API配置选择器变化事件
+step000_api_config_selector.observe(on_api_config_changed, names='value')
+
+# 初始化列选择器容器
+columns_container.children = columns_selector
 
 # 当数据改变时自动更新列选择器
 def update_columns():
-    global df, column_selector
+    global df, columns_selector
     if df is not None:
-        column_selector.options = df.columns.tolist()
-        column_selector.value = df.columns.tolist()[0]
-        column_selector.disabled = False
+        for index, column in enumerate(columns_selector):
+            column.options = df.columns.tolist()
+            column.value = df.columns.tolist()[0]
+            column.disabled = False
+            columns_selector[index] = column
     else:
-        column_selector.options = []
-        column_selector.value = None
-        column_selector.disabled = True
+        for index, column in enumerate(columns_selector):
+            column.options = []
+            column.value = None
+            column.disabled = True
+            columns_selector[index] = column
 
 
 # Step004.1 展示选中列数据
@@ -127,12 +161,14 @@ step004_1_output = widgets.Output()
 def on_show_column_clicked(b):
     with step004_1_output:
         step004_1_output.clear_output()
-        if df is not None and 'column_selector' in globals():
-            selected_col = column_selector.value
-            print(f"📋 选中列: {selected_col}")
-            print(f"📊 数据类型: {df[selected_col].dtype}")
-            print(f"\n📄 前5个值:")
-            display(df[selected_col].head())
+        selected_data_dic = {}
+        if df is not None and 'columns_selector' in globals():
+            for column in columns_selector:
+                if column.value is not None:
+                    selected_data_dic[column.description] = column.value
+            print(f"选中列: {selected_data_dic}")
+            print(f"选中列数据: ")
+            display(df[list(selected_data_dic.values())].head())
         else:
             print("❌ 请先加载数据并选择列")
 
@@ -151,13 +187,13 @@ step004_1_button = widgets.Button(
 step005_output = widgets.Output()
 
 def process_batch_http_request(
-    df,
-    input_field_name,
-    stream_parser,
-    data_processing_methods,
-    api_url,
-    api_type,
-    headers
+    df: pd.DataFrame,
+    placeholder_params_mapping_list,
+    stream_parser: bool,
+    data_processing_methods: list,
+    api_url: str,
+    headers: dict,
+    params: str
 ):
     try:
         columns = df.columns.tolist()
@@ -170,17 +206,26 @@ def process_batch_http_request(
         for index, row in new_df.iterrows():
             try:
                 # 3.1 构建参数
-                input_data = row[input_field_name]
+                # col.description 是占位符的名字
+                # col.value 是数据中列名
+                placeholder_params_mapping_dic = {
+                    col.description: col.value
+                    for col in placeholder_params_mapping_list
+                }
+                request_params = structure_request_params(
+                    row,
+                    placeholder_params_mapping_dic,
+                    json.dumps(params)
+                )
                 # 3.1.1 字段预处理（pipeline）
                 # for data_processing_method in data_processing_methods:
                 #     # 使用前端传递的参数，如果没有则使用默认参数
                 #     method_params = data_processing_params.get(data_processing_method, DATA_PROCESSING_METHODS[data_processing_method]["params"])
                 #     input_data = DATA_PROCESSING_METHODS[data_processing_method]["object"](input_data, **method_params)
                 
-                req_params = structure_request_params(input_data, api_type)
                 
                 # 3.2 请求response
-                response = sync_http_request(api_url, json.dumps(req_params), headers)
+                response = sync_http_request(api_url, request_params, headers)
                 
                 if stream_parser:
                     answer = parse_http_stream_false_response(response)
@@ -239,8 +284,16 @@ def on_process_batch_http_request_clicked(b):
     global df, result_data
     with step005_output:
         step005_output.clear_output()
-        if df is not None and column_selector.value is not None:
-            result_data = process_batch_http_request(df, column_selector.value, True, [], api_url_input.value, api_type_input.value, headers)
+        if df is not None and columns_selector is not None and step000_api_config_selector.value is not None:
+            result_data = process_batch_http_request(
+                df, 
+                columns_selector, 
+                True, 
+                [], 
+                get_api_url_by_name(api_name=step000_api_config_selector.value), 
+                get_api_headers_by_name(api_name=step000_api_config_selector.value),
+                get_api_params_by_name(api_name=step000_api_config_selector.value)
+            )
             rd = pd.DataFrame(result_data)
             display(rd.head())
 
@@ -260,7 +313,7 @@ step005_button = widgets.Button(
 
 
 # Step006 选择要保存的列
-available_columns_selector = widgets.SelectMultiple(
+available_column_selector = widgets.SelectMultiple(
     options=[],
     value=[],
     description='选择要保存的列',
@@ -274,30 +327,38 @@ def update_available_columns():
     global result_data
     if result_data is not None:
         tmp_df = pd.DataFrame(result_data)
-        available_columns_selector.options = tmp_df.columns.tolist()
+        available_column_selector.options = tmp_df.columns.tolist()
         # 默认选择前3列（如果存在的话）
         default_selection = tmp_df.columns.tolist()[:3]
-        available_columns_selector.value = default_selection
-        available_columns_selector.disabled = False
+        available_column_selector.value = default_selection
+        available_column_selector.disabled = False
         print(f"✅ 已更新可选列，共 {len(tmp_df.columns)} 列")
         print(f"📋 可选列: {list(tmp_df.columns)}")
         print(f"🎯 默认选中: {default_selection}")
     else:
-        available_columns_selector.options = []
-        available_columns_selector.value = []
-        available_columns_selector.disabled = True
+        available_column_selector.options = []
+        available_column_selector.value = []
+        available_column_selector.disabled = True
         print("❌ 没有可选择的列，请先完成批量处理")
 
 
 # Step007 保存数据文件
 step007_output = widgets.Output()
 
+# 自定义文件名输入框
+custom_filename_input = widgets.Text(
+    value='',
+    placeholder='输入自定义文件名（可选，不包含扩展名）',
+    description='自定义文件名:',
+    style={'description_width': 'initial'}
+)
+
 # 更新保存数据功能（支持多列）
 def on_save_data_clicked(b):
-    global available_columns_selector, result_data
+    global available_column_selector, result_data
     with step007_output:
         step007_output.clear_output()
-        selected_columns = available_columns_selector.value
+        selected_columns = available_column_selector.value
         display(selected_columns)
         if result_data is not None and selected_columns:
             try:
@@ -311,7 +372,28 @@ def on_save_data_clicked(b):
                 # 选择指定的列
                 display(selected_columns)
                 selected_df = save_df[list(selected_columns)]
-                selected_df.to_excel('saved_file.xlsx', index=False)
+                
+                # 创建output目录
+                output_dir = 'output'
+                if not os.path.exists(output_dir):
+                    os.makedirs(output_dir)
+                
+                # 生成文件名
+                from datetime import datetime
+                custom_name = custom_filename_input.value.strip()
+                if custom_name:
+                    # 使用用户自定义文件名
+                    filename = f"{custom_name}.xlsx"
+                else:
+                    # 使用默认时间序列文件名
+                    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+                    filename = f"batch_test_result_{timestamp}.xlsx"
+                filepath = os.path.join(output_dir, filename)
+                
+                # 保存文件
+                selected_df.to_excel(filepath, index=False)
+                print(f"✅ 文件已保存到: {filepath}")
+                
             except Exception as e:
                 print(f"❌ 保存数据时出错: {e}")
                 import traceback
@@ -383,7 +465,7 @@ def simple_start():
         create_control_section("Step001: 选择数据文件", [step001_dropdown]),
         
         # API配置
-        create_control_section("API配置", [api_url_input, api_type_input]),
+        create_control_section("API配置", [step000_api_config_selector]),
         
         # Step002 - 读取数据
         create_control_section("Step002: 读取数据", [step002_button]),
@@ -394,7 +476,7 @@ def simple_start():
         create_output_section("预览结果", step003_output),
         
         # Step004 - 列选择
-        create_control_section("Step004: 选择数据列", [column_selector]),
+        create_control_section("Step004: 选择数据列", [columns_container]),
         
         # Step004.1 - 列数据展示
         create_control_section("Step004.1: 列数据详情", [step004_1_button]),
@@ -405,10 +487,10 @@ def simple_start():
         create_output_section("批量http请求结果", step005_output),
     
         # Step006 - 选择要保存的数据列
-        create_control_section("Step006: 选择要保存的数据列", [available_columns_selector]),
+        create_control_section("Step006: 选择要保存的数据列", [available_column_selector]),
         
         # Step007 - 保存数据
-        create_control_section("Step007: 保存数据", [step007_button]),
+        create_control_section("Step007: 保存数据", [custom_filename_input, step007_button]),
         create_output_section("保存数据结果", step007_output),
         
         # 使用说明

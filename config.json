@@ -1,0 +1,16 @@
+[
+    {
+        "api_name": "test_api_name",
+        "api_url": "http://localhost:8000/test_api_url/",
+        "headers": {
+            "Content-Type": "application/json"
+        },
+        "params": {
+            "conversation_text": "${conversation_text}",
+            "type": ["纯文本"],
+            "sessionId": "your sessionId",
+            "userKey": "your_userKey",
+            "user": "your_username"
+        }
+    }
+]

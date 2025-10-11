@@ -5,23 +5,15 @@ def parse_http_nostream_response(http_response):
     """
     pass
 
-def structure_request_params(col, api_type):
+def structure_request_params(row, placeholder_params_mapping_dic: dict, params: str):
     """
-    根据不同的api，构建不同的参数类型
+    非嵌套字典的构建
+    解析params中的占位符
     """
-    if api_type == 'async_sales_qa':
-        return {
-             "text": col,
-             "sessionId": "sdfsadfsadfsadfsa",
-             "params": {
-                "type": ["纯文本"]
-             },
-             "userKey": "app-10000",
-             "user": "abc-123"
-        }
-    else:
-        return None
-    
+    for placeholder, col_name in placeholder_params_mapping_dic.items():
+        col_value = row[col_name]
+        params = params.replace(f"${{{str(placeholder)}}}", str(col_value))
+    return params
 
 # 解析recall_result
 def parse_recall_result(recall_result):

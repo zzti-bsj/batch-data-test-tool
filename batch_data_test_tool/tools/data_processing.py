@@ -1,5 +1,6 @@
 import pandas as pd
 import numpy as np
+from ..status import Status
 
 def clean_dataframe_for_json(df):
     """

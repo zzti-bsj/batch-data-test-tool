@@ -11,11 +11,10 @@ def sync_http_request(url, request_json_data, headers):
         if response.status_code == 200:
             return response
         else:
-            raise Exception(f"sync_http_request 响应码非200")
+            raise Exception(f"{str(response.text)}")
     except Exception as e:
         raise Exception(f"sync_http_request 错误：{e}")
 
-    return response
 
 
 def parse_http_stream_false_response(http_response):
