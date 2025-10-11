@@ -69,59 +69,6 @@ from batch_data_test_tool import cola_start
 cola_start()
 ```
 
-### 作为命令行工具使用
-
-```bash
-batch-test-tool
-```
-
-## 使用流程
-
-### 完整使用步骤
-
-1. **准备环境**
-   ```bash
-   # 创建必要目录
-   mkdir data
-   
-   # 安装包
-   pip install batch-data-test-tool
-   ```
-
-2. **配置API接口**
-   创建`config.json`文件，配置您的API：
-   ```json
-   [
-       {
-           "api_name": "我的API接口",
-           "api_url": "http://your-api-endpoint.com/api",
-           "headers": {
-               "Content-Type": "application/json",
-               "User-Agent": "BatchDataTestTool/1.0"
-           },
-           "params": {
-               "conversation_text": "${conversation_text}",
-               "sessionId": "default_session",
-               "userKey": "app-10000"
-           }
-       }
-   ]
-   ```
-
-3. **准备测试数据**
-   将CSV或Excel文件放入`data/`目录
-
-4. **启动JupyterLab**
-   ```bash
-   jupyter lab
-   ```
-
-5. **使用工具**
-   ```python
-   from batch_data_test_tool import cola_start
-   cola_start()
-   ```
-
 ### 界面操作步骤
 
 启动`cola_start()`后，按以下步骤操作：
@@ -146,7 +93,7 @@ batch-test-tool
 
 ## 更新日志
 
-### v1.1.0
+### v1.1.1
 - ✨ **新增功能**:
   - 支持JSON配置文件，可配置多个API接口
   - 动态参数映射，支持数据列与API参数的灵活映射
