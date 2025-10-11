@@ -26,7 +26,6 @@ def get_api_params_placeholder_list_by_name(config_file_path: str = 'config.json
                     # 不要外面的美元符号和括号
                     placeholder_list.append(match.group(0).replace('${', '').replace('}', ''))
             break
-    print(placeholder_list)
     return placeholder_list
 
 def get_api_url_by_name(config_file_path: str = 'config.json', api_name: str = 'test_api_name') -> str:

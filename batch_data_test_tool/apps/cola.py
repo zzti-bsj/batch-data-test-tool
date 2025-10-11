@@ -95,7 +95,6 @@ step003_button = widgets.Button(
 
 # Step004. 列选择器
 api_params_placeholder_list = get_api_params_placeholder_list_by_name(api_name=step000_api_config_selector.value)
-print(api_params_placeholder_list)
 columns_selector = [widgets.Dropdown(
     options=[],
     value=None,
