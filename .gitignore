@@ -5,3 +5,6 @@ __pycache__
 *.egg-info
 dist
 .DS_Store
+*logs
+*output
+*data

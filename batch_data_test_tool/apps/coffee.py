@@ -229,6 +229,14 @@ progress_bar = widgets.IntProgress(
     layout=widgets.Layout(width='100%')
 )
 
+# 自动保存勾选框
+auto_save_checkbox = widgets.Checkbox(
+    value=False,
+    description='自动保存',
+    disabled=False,
+    style={'description_width': 'initial'}
+)
+
 # Step005. 执行批量测试
 step005_output = widgets.Output()
 
@@ -365,6 +373,28 @@ def process_batch_http_request(
         
         # 更新列选择器
         update_available_columns()
+        
+        # 如果勾选了自动保存，则自动保存数据
+        if auto_save_checkbox.value:
+            try:
+                # 创建output目录
+                output_dir = 'output'
+                if not os.path.exists(output_dir):
+                    os.makedirs(output_dir)
+                
+                # 生成文件名
+                from datetime import datetime
+                timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+                filename = f"auto_save_{timestamp}.xlsx"
+                filepath = os.path.join(output_dir, filename)
+                
+                # 保存所有数据
+                new_df.to_excel(filepath, index=False)
+                logging.info(f"✅ 自动保存完成！文件已保存到: {filepath}")
+                print(f"✅ 自动保存完成！文件已保存到: {filepath}")
+            except Exception as e:
+                logging.error(f"自动保存失败: {e}")
+                print(f"❌ 自动保存失败: {e}")
         
         return result_data
         
@@ -590,7 +620,7 @@ def coffee_start():
         create_output_section("列数据结果", step004_1_output),
     
         # Step005 - 批量http请求
-        create_control_section("Step005: 批量http请求", [max_workers_selector, progress_bar, step005_button]),
+        create_control_section("Step005: 批量http请求", [max_workers_selector, progress_bar, auto_save_checkbox, step005_button]),
         create_output_section("批量http请求结果", step005_output),
     
         # Step006 - 选择要保存的数据列
