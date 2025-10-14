@@ -298,27 +298,35 @@ def process_batch_http_request(
         
         for index, response in results.items():
             # emmm ... 以下解析的逻辑要重写的
+            # 需要实现一系列解析Response的方法组成的Pipeline
             exception_message = ''
-            if stream_parser:
-                try:
-                    answer = parse_http_stream_false_response(response)
-                except Exception as e:
-                    answer = None
-                    exception_message = f"数据「{index}」解析answer时错误: {str(e)}"
-                    logging.error(f"数据「{index}」解析answer时错误: {str(e)}")
-                try:
-                    recall_list = parse_http_stream_true_response(response)
-                except Exception as e:
-                    recall_list = []
-                    exception_message = f"数据「{index}」解析recall_list时错误: {str(e)}"
-                    logging.error(f"数据「{index}」解析recall_list时错误: {str(e)}")
+            # if stream_parser:
+            #     try:
+            #         answer = parse_http_stream_false_response(response)
+            #     except Exception as e:
+            #         answer = None
+            #         exception_message = f"数据「{index}」解析answer时错误: {str(e)}"
+            #         logging.error(f"数据「{index}」解析answer时错误: {str(e)}")
+            #     try:
+            #         recall_list = parse_http_stream_true_response(response)
+            #     except Exception as e:
+            #         recall_list = []
+            #         exception_message = f"数据「{index}」解析recall_list时错误: {str(e)}"
+            #         logging.error(f"数据「{index}」解析recall_list时错误: {str(e)}")
                 
-                # 将列表转换为字符串存储
-                new_df.loc[index, 'answer'] = str(answer) if answer is not None else None
-                new_df.loc[index, 'recall_list'] = str(recall_list) if recall_list is not None else None
-            else:
-                new_df.loc[index, 'answer'] = None
-                new_df.loc[index, 'recall_list'] = None
+            #     # 将列表转换为字符串存储
+            #     new_df.loc[index, 'answer'] = str(answer) if answer is not None else None
+            #     new_df.loc[index, 'recall_list'] = str(recall_list) if recall_list is not None else None
+            # else:
+            #     new_df.loc[index, 'answer'] = None
+            #     new_df.loc[index, 'recall_list'] = None
+
+            try:
+                new_df.loc[index, 'response_text'] = response.text
+            except Exception as e:
+                new_df.loc[index, 'response_text'] = None
+                exception_message = f"数据「{index}」获取response_text时错误: {str(e)}"
+                logging.error(f"数据「{index}」获取response_text时错误: {str(e)}")
 
             # 每行处理完response之后落日志（只写入文件，不显示在控制台）
             if exception_message != '':
