@@ -1,5 +1,5 @@
-import os
-import sys
+import os, time
+import logging
 import json
 import pandas as pd
 import ipywidgets as widgets
@@ -9,6 +9,35 @@ from ..tools.http_response import structure_request_params, parse_recall_result_
 from ..tools import DATA_PROCESSING_METHODS
 from ..tools.get_config import get_api_url_name_list, get_api_params_placeholder_list_by_name, get_api_url_by_name, get_api_headers_by_name, get_api_params_by_name
 from IPython.display import display
+from ..concurrency.multi_threading import multi_exec
+from ..tools.structured_log import structured_logging_metadata, structured_logging_row_detail
+
+if not os.path.exists('logs'):
+    os.makedirs('logs')
+# 日志服务
+# 控制台日志 - 只显示重要信息
+console_handler = logging.StreamHandler()
+console_handler.setLevel(logging.INFO)
+console_formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
+console_handler.setFormatter(console_formatter)
+
+# 文件日志 - 记录详细信息
+file_handler = logging.FileHandler(f'logs/batch_test_{time.time()}.log')
+file_handler.setLevel(logging.INFO)
+file_formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
+file_handler.setFormatter(file_formatter)
+
+# 配置根日志器
+logging.basicConfig(
+    level=logging.INFO,
+    handlers=[console_handler, file_handler]
+)
+
+# 创建专门用于详细日志的logger
+detailed_logger = logging.getLogger('detailed')
+detailed_logger.setLevel(logging.INFO)
+detailed_logger.addHandler(file_handler)  # 只写入文件，不输出到控制台
+detailed_logger.propagate = False  # 防止传播到根日志器
 
 # 全局数据
 df = None
@@ -23,8 +52,6 @@ step000_api_config_selector = widgets.Dropdown(
     description='选择接口配置',
     disabled=False,
 )
-
-
 
 
 # Step001. 选择数据
@@ -179,11 +206,32 @@ step004_1_button = widgets.Button(
     icon='list'
 )
 
-# 是否启用并发 并发数
-# 构建请求数据
-# 向接口发送请求
+# 并发数选择器
+max_workers_selector = widgets.IntSlider(
+    value=4,
+    min=1,
+    max=10,
+    step=1,
+    description='并发数:',
+    disabled=False,
+    style={'description_width': 'initial'}
+)
+
+# 进度条
+progress_bar = widgets.IntProgress(
+    value=0,
+    min=0,
+    max=100,
+    description='处理进度:',
+    bar_style='info',
+    orientation='horizontal',
+    style={'bar_color': '#28a745'},
+    layout=widgets.Layout(width='100%')
+)
+
 # Step005. 执行批量测试
 step005_output = widgets.Output()
+
 
 def process_batch_http_request(
     df: pd.DataFrame,
@@ -199,9 +247,9 @@ def process_batch_http_request(
         # 保留用户选择的列
         new_df = pd.DataFrame()
         new_df[list(columns)] = df[list(columns)]
-        
-        parsed_result = []
-        # 3. 对于此列的每一个数据都调用接口请求数据
+
+        # 3. 构建请求参数
+        func_params_dic = {}
         for index, row in new_df.iterrows():
             try:
                 # 3.1 构建参数
@@ -225,39 +273,79 @@ def process_batch_http_request(
                 
                 # 3.2 请求response
                 # 只构建参数列表
-                response = sync_http_request(api_url, request_params, headers)
-                
-                if stream_parser:
-                    answer = parse_http_stream_false_response(response)
-                    # 当没有召回的时候
-                    try:
-                        recall_list = parse_http_stream_true_response(response)
-                    except Exception as e:
-                        print(f"第「{index}」列的召回结果为空")
-                        recall_list = []
-                    res = {
-                        'answer': answer,
-                        'recall_list': parse_recall_result_special(recall_list)
-                    }
-                else:
-                    # parse_http_nostream_response
-                    res = {
-                        'answer': None,  # 添加输入数据
-                        'recall_list': None  # 需要实现这个函数
-                    }
-                parsed_result.append(res)
-                
+                func_params = {
+                    'api_url': api_url,
+                    'headers': headers,
+                    'request_params': request_params
+                }
+
+                # response = sync_http_request(api_url, request_params, headers)
+                func_params_dic[index] = func_params
+
             except Exception as e:
+                logging.error(f"构建第{index}行请求参数时出错: {e} \n\n api_url:参数{func_params}；headers:参数{headers}；request_params:参数{request_params}")
                 print(f"处理第{index}行时出错: {e}")
-                # 添加错误结果
-                parsed_result.append({
-                    'answer': f"处理失败: {str(e)}",
-                    'recall_list': None
-                })
-            # print(res)
-            # 处理完一条数据
-        result_df = pd.DataFrame(parsed_result)
-        new_df = new_df.assign(**result_df.to_dict('list'))
+                raise Exception(f"处理第{index}行时出错: {e}")
+
+
+        # 根据构建好的参数来处理结果
+        results = multi_exec(sync_http_request, func_params_dic, max_workers=max_workers_selector.value)
+        
+        # 初始化进度条
+        total_rows = len(new_df)
+        progress_bar.max = total_rows
+        progress_bar.value = 0
+        
+        for index, response in results.items():
+            # emmm ... 以下解析的逻辑要重写的
+            exception_message = ''
+            if stream_parser:
+                try:
+                    answer = parse_http_stream_false_response(response)
+                except Exception as e:
+                    answer = None
+                    exception_message = f"数据「{index}」解析answer时错误: {str(e)}"
+                    logging.error(f"数据「{index}」解析answer时错误: {str(e)}")
+                try:
+                    recall_list = parse_http_stream_true_response(response)
+                except Exception as e:
+                    recall_list = []
+                    exception_message = f"数据「{index}」解析recall_list时错误: {str(e)}"
+                    logging.error(f"数据「{index}」解析recall_list时错误: {str(e)}")
+                
+                # 将列表转换为字符串存储
+                new_df.loc[index, 'answer'] = str(answer) if answer is not None else None
+                new_df.loc[index, 'recall_list'] = str(recall_list) if recall_list is not None else None
+            else:
+                new_df.loc[index, 'answer'] = None
+                new_df.loc[index, 'recall_list'] = None
+
+            # 每行处理完response之后落日志（只写入文件，不显示在控制台）
+            if exception_message != '':
+                detailed_logger.error(structured_logging_row_detail(
+                    row_index=index,
+                    row=new_df.loc[index].to_dict(),
+                    max_workers=max_workers_selector.value,
+                    api_url=api_url,
+                    request_params=request_params,
+                    headers=headers,
+                    response=response,
+                    exception_message=exception_message
+                ))
+            else:
+                detailed_logger.info(structured_logging_row_detail(
+                    row_index=index,
+                    row=new_df.loc[index].to_dict(),
+                    max_workers=max_workers_selector.value,
+                    api_url=api_url,
+                    request_params=request_params,
+                    headers=headers,
+                    response=response,
+                    exception_message=None
+                ))
+            
+            # 更新进度条
+            progress_bar.value += 1
         
         # 清理NaN值，使其能够正确序列化为JSON
         new_df = clean_dataframe_for_json(new_df)
@@ -265,9 +353,7 @@ def process_batch_http_request(
         # 将结果转换为字典格式返回
         global result_data
         result_data = new_df.to_dict('records')
-        
-        print(f"✅ 批量处理完成！处理了 {len(result_data)} 条记录")
-        print(f"📊 结果数据列: {list(new_df.columns)}")
+        logging.info(f"✅ 批量处理完成！处理了 {len(result_data)} 条记录")
         
         # 更新列选择器
         update_available_columns()
@@ -275,13 +361,23 @@ def process_batch_http_request(
         return result_data
         
     except Exception as e:
-        print('a')
-        return 'Error'
+        logging.error(f"批量处理出错: {e}")
+        print(f"❌ 批量处理出错: {e}")
+        return []
 
 # 创建事件处理函数
 def on_process_batch_http_request_clicked(b):
     """批量处理http请求按钮点击事件"""
     global df, result_data
+    
+    # 记录日志元数据
+    logging.info(structured_logging_metadata(
+        input_file_name=step001_dropdown.value,
+        all_columns=df.columns.tolist(),
+        input_columns=[column.description for column in columns_selector],
+        input_shape=df.shape,
+        input_number=len(df)
+    ))
     with step005_output:
         step005_output.clear_output()
         if df is not None and columns_selector is not None and step000_api_config_selector.value is not None:
@@ -294,8 +390,11 @@ def on_process_batch_http_request_clicked(b):
                 get_api_headers_by_name(api_name=step000_api_config_selector.value),
                 get_api_params_by_name(api_name=step000_api_config_selector.value)
             )
-            rd = pd.DataFrame(result_data)
-            display(rd.head())
+            if result_data and len(result_data) > 0:
+                rd = pd.DataFrame(result_data)
+                display(rd.head())
+            else:
+                print("❌ 没有处理结果数据")
 
             # 更新结果列
             update_available_columns()
@@ -392,7 +491,7 @@ def on_save_data_clicked(b):
                 
                 # 保存文件
                 selected_df.to_excel(filepath, index=False)
-                print(f"✅ 文件已保存到: {filepath}")
+                logging.info(f"✅ 文件已保存到: {filepath}")
                 
             except Exception as e:
                 print(f"❌ 保存数据时出错: {e}")
@@ -411,7 +510,7 @@ step007_button = widgets.Button(
 
 
 
-def cola_start():
+def coffee_start():
     step002_output.clear_output()
     step003_output.clear_output()
     step004_1_output.clear_output()
@@ -483,7 +582,7 @@ def cola_start():
         create_output_section("列数据结果", step004_1_output),
     
         # Step005 - 批量http请求
-        create_control_section("Step005: 批量http请求", [step005_button]),
+        create_control_section("Step005: 批量http请求", [max_workers_selector, progress_bar, step005_button]),
         create_output_section("批量http请求结果", step005_output),
     
         # Step006 - 选择要保存的数据列
