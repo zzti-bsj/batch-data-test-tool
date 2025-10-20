@@ -1,6 +1,28 @@
 import json
 import re
+from functools import lru_cache
 from typing import Any, List, Union, Optional
+
+# 可选引入 jmespath，提供更健壮的 JSON 查询能力
+try:
+    import jmespath  # type: ignore
+    _JMESPATH_AVAILABLE = True
+except Exception:  # jmespath 未安装时回退到内置解析
+    jmespath = None  # type: ignore
+    _JMESPATH_AVAILABLE = False
+
+# 负索引检测，用于决定是否交给 jmespath 处理
+_NEGATIVE_INDEX_RE = re.compile(r"\[-\d+\]")
+
+
+def _contains_negative_index(path: str) -> bool:
+    return bool(_NEGATIVE_INDEX_RE.search(path))
+
+
+@lru_cache(maxsize=256)
+def _compile_jmespath(expression: str):
+    # 仅在 jmespath 可用时调用
+    return jmespath.compile(expression)  # type: ignore
 
 
 def get_json_field_value(json_data: Any, field_path: str) -> Any:
@@ -17,6 +39,7 @@ def get_json_field_value(json_data: Any, field_path: str) -> Any:
             - 范围选择: "items[0:3]"（返回子列表）
             - 通配符: "items[*].name"（返回列表）
             - 深度通配符: "**.name"（搜索所有层级）
+            - JSON字符串解析: 自动检测并解析JSON字符串字段
     
     Returns:
         指定路径的值，如果路径不存在返回None
@@ -34,6 +57,17 @@ def get_json_field_value(json_data: Any, field_path: str) -> Any:
         if '**' in field_path:
             return _deep_search(json_data, field_path.replace('**.', ''))
         
+        # 优先使用 jmespath（若可用），对常见路径/通配/切片具备更强表达力
+        # 注意：jmespath 不支持负索引，且不支持 "**" 深度通配，因此这些场景回退到旧逻辑
+        if _JMESPATH_AVAILABLE and not _contains_negative_index(field_path):
+            try:
+                result = _compile_jmespath(field_path).search(json_data)  # type: ignore
+                if result is not None:
+                    return result
+            except Exception:
+                # 表达式不被 jmespath 支持或运行时异常时，回退到旧逻辑
+                pass
+
         # 处理通配符路径
         if '*' in field_path:
             return _wildcard_search(json_data, field_path)
@@ -114,8 +148,8 @@ def get_all_json_keys(json_data: Any, parent_path: str = "", max_depth: int = 10
     keys = []
     
     try:
-        # 如果传入的是字符串，尝试解析为JSON
-        if isinstance(json_data, str):
+        # 如果传入的是字符串，尝试解析为JSON（仅限根级别）
+        if isinstance(json_data, str) and not parent_path:
             json_data = json.loads(json_data)
         
         if isinstance(json_data, dict):

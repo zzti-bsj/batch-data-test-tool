@@ -5,3 +5,4 @@ requests
 json-repair
 openpyxl
 ipywidgets
+jmespath
