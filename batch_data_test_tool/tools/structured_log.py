@@ -32,7 +32,12 @@ def structured_logging_row_detail(
     """
     日志结构化输出
     """
-    if response.status_code == 200:
+    if response is None:
+        structured_response = {
+            "response_status_code": "Failed",
+            "response_content": str(exception_message)
+        }
+    elif response.status_code == 200:
         structured_response = {
             "response_status_code": "Succeed",
             "response_content": response.text

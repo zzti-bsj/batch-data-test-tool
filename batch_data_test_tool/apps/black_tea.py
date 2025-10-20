@@ -979,7 +979,7 @@ update_available_columns_button.on_click(on_update_available_columns_clicked)
 
 
 
-def coffee_start():
+def black_tea_start():
     step002_output.clear_output()
     step003_output.clear_output()
     step004_1_output.clear_output()
