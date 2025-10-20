@@ -6,7 +6,7 @@ import ipywidgets as widgets
 from ..tools.data_processing import read_dataframe_from_file, clean_dataframe_for_json
 from ..tools.http_request import sync_http_request, parse_http_stream_false_response, parse_http_stream_true_response
 from ..tools.http_response import structure_request_params, parse_recall_result_special
-from ..tools import DATA_PROCESSING_METHODS
+from ..tools import DATA_PROCESSING_METHODS, RESPONSE_PARSING_METHODS, get_json_field_value, get_all_json_keys
 from ..tools.get_config import get_api_url_name_list, get_api_params_placeholder_list_by_name, get_api_url_by_name, get_api_headers_by_name, get_api_params_by_name
 from IPython.display import display
 from ..concurrency.multi_threading import multi_exec
@@ -250,6 +250,7 @@ def process_batch_http_request(
     headers: dict,
     params: str
 ):
+    global preview_response_first
     try:
         columns = df.columns.tolist()
         # 保留用户选择的列
@@ -374,6 +375,12 @@ def process_batch_http_request(
         # 更新列选择器
         update_available_columns()
         
+        # 更新解析字段配置的路径选项
+        update_all_field_path_options()
+        
+        # 更新预览响应第一个
+        preview_response_first = result_data[0]['response_text']
+
         # 如果勾选了自动保存，则自动保存数据
         if auto_save_checkbox.value:
             try:
@@ -449,6 +456,413 @@ step005_button = widgets.Button(
 )
 
 
+# Step005.1 Response解析配置
+# 解析字段配置列表
+parsing_fields = []
+
+# preview_response_first
+preview_response_first = None
+
+# 新增字段按钮
+add_field_button = widgets.Button(
+    description='新增解析字段',
+    disabled=False,
+    button_style='info',
+    tooltip='添加新的响应解析字段',
+    icon='plus'
+)
+
+# 手动更新字段路径按钮
+manual_update_button = widgets.Button(
+    description='手动更新字段路径',
+    disabled=False,
+    button_style='warning',
+    tooltip='手动更新所有字段的路径选项',
+    icon='refresh'
+)
+
+# 生成结果字段按钮
+generate_result_fields_button = widgets.Button(
+    description='生成结果字段',
+    disabled=False,
+    button_style='success',
+    tooltip='根据配置的解析器处理所有response_text数据并生成新字段',
+    icon='cog'
+)
+
+# 字段配置容器
+field_configs_container = widgets.VBox([])
+
+# 解析方式选择器
+parsing_method_selector = widgets.Dropdown(
+    options=[
+        (method['method_name'], method['method'])
+        for method in RESPONSE_PARSING_METHODS.values()
+    ],
+    value=None,
+    description='选择解析器',
+    disabled=False,
+    style={'description_width': 'initial'}
+)
+
+# 字段路径选择器（动态生成）
+field_path_selector = widgets.Dropdown(
+    options=[],
+    value=None,
+    description='选择Response字段路径',
+    disabled=True,
+    style={'description_width': 'initial'}
+)
+
+# 预解析按钮
+preview_parse_button = widgets.Button(
+    description='预解析',
+    disabled=True,
+    button_style='success',
+    tooltip='预览解析结果',
+    icon='eye'
+)
+
+# 预解析结果输出
+step005_1_output = widgets.Output()
+
+def on_add_field_clicked(b):
+    """新增字段按钮点击事件"""
+    global parsing_fields
+    
+    print(f"🔍 新增字段按钮被点击")
+    
+    # 创建字段配置
+    field_config = {
+        'field_name': f'field_{len(parsing_fields) + 1}',
+        'parsing_method': None,
+        'field_path': None,
+        'widgets': {}
+    }
+    
+    # 创建字段配置UI
+    field_widgets = create_field_config_widgets(field_config)
+    field_config['widgets'] = field_widgets
+    
+    # 添加到配置列表
+    parsing_fields.append(field_config)
+    
+    # 更新容器
+    update_field_configs_container()
+    
+    # 立即更新字段路径选项
+    print(f"🔍 立即更新新字段的路径选项")
+    update_field_path_options(field_config)
+
+def create_field_config_widgets(field_config):
+    global preview_response_first
+    """创建单个字段的配置UI"""
+    # 字段名称输入框
+    field_name_input = widgets.Text(
+        value=field_config['field_name'],
+        placeholder='输入字段名称',
+        description='字段名:',
+        style={'description_width': 'initial'}
+    )
+    
+    # 解析方式选择器（固定为获取指定字段值）
+    parsing_method = widgets.Dropdown(
+        options=[
+            (method['method_name'], method['method'])
+            for method in RESPONSE_PARSING_METHODS.values()
+        ],
+        value=None,
+        description='选择解析器',
+        disabled=False,  # 禁用选择，固定为获取指定字段值
+        style={'description_width': 'initial'}
+    )
+    
+    # 字段路径选择器
+    field_path = widgets.Dropdown(
+        options=[],
+        value=None,
+        description='选择Response字段路径',
+        disabled=True,
+        style={'description_width': 'initial'}
+    )
+    
+    # 预解析按钮
+    preview_button = widgets.Button(
+        description='预解析',
+        disabled=True,
+        button_style='success',
+        tooltip='预览解析结果',
+        icon='eye'
+    )
+    
+    # 删除按钮
+    delete_button = widgets.Button(
+        description='删除',
+        disabled=False,
+        button_style='danger',
+        tooltip='删除此字段配置',
+        icon='trash'
+    )
+    
+    # 预解析结果输出
+    preview_output = widgets.Output()
+    
+    # 绑定事件
+    def on_field_path_changed(change):
+        field_config['field_path'] = change['new']
+        preview_button.disabled = False
+        print(f"🔍 字段路径改变: {change['new']}")
+    
+    def on_preview_clicked(b):
+        with preview_output:
+            preview_output.clear_output()
+            preview_parse_result(field_config)
+    
+    def on_delete_clicked(b):
+        global parsing_fields
+        if field_config in parsing_fields:
+            parsing_fields.remove(field_config)
+            update_field_configs_container()
+    
+    def on_field_name_changed(change):
+        field_config['field_name'] = change['new']
+    
+    def on_parsing_method_changed(change):
+        field_config['parsing_method'] = change['new']
+    
+    # 绑定事件处理器
+    field_path.observe(on_field_path_changed, names='value')
+    parsing_method.observe(on_parsing_method_changed, names='value')
+    field_name_input.observe(on_field_name_changed, names='value')
+    preview_button.on_click(on_preview_clicked)
+    delete_button.on_click(on_delete_clicked)
+    
+    print(f"🔍 事件处理器已绑定")
+    
+    return {
+        'field_name': field_name_input,
+        'parsing_method': parsing_method,
+        'field_path': field_path,
+        'preview_button': preview_button,
+        'delete_button': delete_button,
+        'preview_output': preview_output
+    }
+
+def update_field_path_options(field_config):
+    """更新字段路径选项"""
+    global result_data
+    
+    print(f"🔍 开始更新字段路径选项...")
+    print(f"🔍 result_data状态: {result_data is not None}, 长度: {len(result_data) if result_data else 0}")
+    
+    if result_data is None or len(result_data) == 0:
+        print(f"❌ result_data为空，无法更新字段路径")
+        return
+    
+    # 获取第一个response作为样本
+    first_response = result_data[0]
+    print(f"🔍 第一个response的keys: {list(first_response.keys())}")
+    
+    if 'response_text' not in first_response:
+        print(f"❌ 第一个response中没有response_text字段")
+        return
+    
+    try:
+        # 解析JSON响应
+        response_text = first_response['response_text']
+        print(f"🔍 response_text长度: {len(response_text)}")
+        print(f"🔍 response_text前200字符: {response_text[:200]}")
+        
+        response_json = json.loads(response_text)
+        print(f"✅ JSON解析成功，类型: {type(response_json)}")
+        
+        # 获取所有字段路径
+        all_keys = get_all_json_keys(response_json)
+        print(f"✅ 获取到 {len(all_keys)} 个字段路径")
+        print(f"🔍 前10个路径: {all_keys[:10]}")
+        
+        # 检查widgets是否存在并更新字段路径下拉框
+        if 'widgets' in field_config and 'field_path' in field_config['widgets']:
+            field_config['widgets']['field_path'].options = all_keys
+            field_config['widgets']['field_path'].disabled = False
+            print(f"✅ 字段路径下拉框已更新，选项数量: {len(all_keys)}")
+        else:
+            print(f"❌ field_config中没有widgets或field_path")
+            print(f"🔍 field_config keys: {list(field_config.keys())}")
+            
+    except Exception as e:
+        print(f"❌ 解析响应JSON时出错: {e}")
+        import traceback
+        traceback.print_exc()
+
+def preview_parse_result(field_config):
+    """预览解析结果"""
+    global result_data
+    
+    if result_data is None or len(result_data) == 0:
+        print("❌ 没有可用的响应数据")
+        return
+    
+    try:
+        # 获取第一个response作为样本
+        first_response = result_data[0]
+        if 'response_text' not in first_response:
+            print("❌ 响应数据中没有response_text字段")
+            return
+        
+        # 解析JSON响应
+        response_json = json.loads(first_response['response_text'])
+        
+        # 使用__init__.py中配置的方法进行解析
+        parse_method = field_config['parsing_method']
+        field_path = field_config['field_path']
+        if parse_method and field_path:
+            # 使用RESPONSE_PARSING_METHODS中配置的方法
+            result = parse_method(response_json, field_path)
+            print(f"✅ 字段路径: {field_path}")
+            print(f"📊 解析结果: {result}")
+            print(f"📋 数据类型: {type(result).__name__}")
+            
+            # 如果结果是复杂类型，显示更多信息
+            if isinstance(result, (list, dict)):
+                print(f"📏 结果长度: {len(result) if hasattr(result, '__len__') else 'N/A'}")
+                if isinstance(result, list) and len(result) > 0:
+                    print(f"🔍 列表第一个元素: {result[0]}")
+                elif isinstance(result, dict) and len(result) > 0:
+                    print(f"🔍 字典第一个键值对: {list(result.items())[0]}")
+        else:
+            print("❌ 请先选择解析器和字段路径")
+            
+    except Exception as e:
+        print(f"❌ 预览解析时出错: {e}")
+        import traceback
+        traceback.print_exc()
+
+def update_field_configs_container():
+    """更新字段配置容器"""
+    global parsing_fields
+    
+    # 清空容器
+    field_configs_container.children = []
+    
+    # 为每个字段配置创建UI
+    for i, field_config in enumerate(parsing_fields):
+        widgets_list = field_config['widgets']
+        
+        # 创建字段配置的UI布局
+        field_ui = widgets.VBox([
+            widgets.HTML(f"<h4 style='margin: 10px 0 5px 0; color: #3498db;'>字段配置 {i+1}</h4>"),
+            widgets.HBox([
+                widgets_list['field_name'],
+                widgets_list['parsing_method'],
+                widgets_list['field_path'],
+                widgets_list['preview_button'],
+                widgets_list['delete_button']
+            ]),
+            widgets_list['preview_output']
+        ], layout=widgets.Layout(
+            border='1px solid #bdc3c7',
+            border_radius='5px',
+            padding='10px',
+            margin='5px 0'
+        ))
+        
+        field_configs_container.children += (field_ui,)
+
+def update_all_field_path_options():
+    """更新所有字段配置的路径选项"""
+    global parsing_fields
+    
+    print(f"🔍 开始更新所有字段配置的路径选项，共 {len(parsing_fields)} 个字段配置")
+    
+    for i, field_config in enumerate(parsing_fields):
+        print(f"🔍 更新第 {i+1} 个字段配置")
+        update_field_path_options(field_config)
+
+def on_manual_update_clicked(b):
+    """手动更新字段路径按钮点击事件"""
+    print(f"🔍 手动更新字段路径按钮被点击")
+    update_all_field_path_options()
+
+def on_generate_result_fields_clicked(b):
+    """生成结果字段按钮点击事件"""
+    global result_data, parsing_fields
+    
+    print(f"🔍 生成结果字段按钮被点击")
+    
+    if result_data is None or len(result_data) == 0:
+        print("❌ 没有可用的响应数据，请先完成Step005")
+        return
+    
+    if not parsing_fields:
+        print("❌ 没有配置任何解析字段，请先添加解析字段")
+        return
+    
+    # 检查所有字段配置是否完整
+    incomplete_fields = []
+    for field_config in parsing_fields:
+        if not field_config.get('field_name'):
+            incomplete_fields.append("字段名称")
+        if not field_config.get('parsing_method'):
+            incomplete_fields.append("解析器")
+        if not field_config.get('field_path'):
+            incomplete_fields.append("字段路径")
+    
+    if incomplete_fields:
+        print(f"❌ 字段配置不完整，缺少: {', '.join(set(incomplete_fields))}")
+        return
+    
+    try:
+        print(f"✅ 开始处理 {len(result_data)} 条数据，生成 {len(parsing_fields)} 个新字段")
+        
+        # 为每条数据生成新字段
+        for index, row_data in enumerate(result_data):
+            if 'response_text' not in row_data:
+                print(f"⚠️ 第{index}行数据没有response_text字段，跳过")
+                continue
+            
+            try:
+                # 解析JSON响应
+                response_json = json.loads(row_data['response_text'])
+                
+                # 为每个配置的字段生成结果
+                for field_config in parsing_fields:
+                    field_name = field_config['field_name']
+                    parse_method = field_config['parsing_method']
+                    field_path = field_config['field_path']
+                    
+                    # 使用配置的解析方法处理数据
+                    result = parse_method(response_json, field_path)
+                    
+                    # 将结果保存到数据中
+                    row_data[field_name] = result
+                    
+            except Exception as e:
+                print(f"⚠️ 处理第{index}行数据时出错: {e}")
+                # 为所有字段设置None值
+                for field_config in parsing_fields:
+                    field_name = field_config['field_name']
+                    row_data[field_name] = None
+        
+        print(f"✅ 成功生成结果字段！")
+        print(f"📊 新增字段: {[field_config['field_name'] for field_config in parsing_fields]}")
+        print(f"📋 数据总列数: {len(result_data[0]) if result_data else 0}")
+        
+        # 显示完成提示
+        print("🎉 Step005.1 已完成！所有配置的解析字段已成功生成到数据中。")
+        print("💡 提示：现在可以进入Step006选择要保存的字段。")
+        
+    except Exception as e:
+        print(f"❌ 生成结果字段时出错: {e}")
+        import traceback
+        traceback.print_exc()
+
+# 绑定按钮事件
+add_field_button.on_click(on_add_field_clicked)
+manual_update_button.on_click(on_manual_update_clicked)
+generate_result_fields_button.on_click(on_generate_result_fields_clicked)
+
+
 # Step006 选择要保存的列
 available_column_selector = widgets.SelectMultiple(
     options=[],
@@ -456,6 +870,15 @@ available_column_selector = widgets.SelectMultiple(
     description='选择要保存的列',
     disabled=True,
     layout=widgets.Layout(width='300px', height='150px')
+)
+
+# 更新可选字段按钮
+update_available_columns_button = widgets.Button(
+    description='更新可选字段',
+    disabled=False,
+    button_style='info',
+    tooltip='刷新获取DataFrame的所有字段列',
+    icon='refresh'
 )
 
 # 更新列选择器的函数（支持多选）
@@ -477,6 +900,11 @@ def update_available_columns():
         available_column_selector.value = []
         available_column_selector.disabled = True
         print("❌ 没有可选择的列，请先完成批量处理")
+
+def on_update_available_columns_clicked(b):
+    """更新可选字段按钮点击事件"""
+    print(f"🔍 更新可选字段按钮被点击")
+    update_available_columns()
 
 
 # Step007 保存数据文件
@@ -546,6 +974,9 @@ step007_button = widgets.Button(
     tooltip='将选中的多列数据保存到CSV文件'
 )
 
+# 绑定更新可选字段按钮事件
+update_available_columns_button.on_click(on_update_available_columns_clicked)
+
 
 
 def coffee_start():
@@ -553,6 +984,7 @@ def coffee_start():
     step003_output.clear_output()
     step004_1_output.clear_output()
     step005_output.clear_output()
+    step005_1_output.clear_output()
     step007_output.clear_output()
     
     # 绑定事件
@@ -623,14 +1055,18 @@ def coffee_start():
         create_control_section("Step005: 批量http请求", [max_workers_selector, progress_bar, auto_save_checkbox, step005_button]),
         create_output_section("批量http请求结果", step005_output),
     
+        # Step005.1 - Response解析配置
+        create_control_section("Step005.1: Response解析配置", [add_field_button, manual_update_button, generate_result_fields_button, field_configs_container]),
+        create_output_section("解析配置结果", step005_1_output),
+    
         # Step006 - 选择要保存的数据列
-        create_control_section("Step006: 选择要保存的数据列", [available_column_selector]),
+        create_control_section("Step006: 选择要保存的数据列", [update_available_columns_button, available_column_selector]),
         
         # Step007 - 保存数据
         create_control_section("Step007: 保存数据", [custom_filename_input, step007_button]),
         create_output_section("保存数据结果", step007_output),
         
-        # 使用说明
+        # 使用说明  
         widgets.HTML("""
         <div style="
             margin: 20px 0 0 0;

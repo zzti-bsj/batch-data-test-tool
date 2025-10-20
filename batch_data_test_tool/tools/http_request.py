@@ -13,7 +13,7 @@ def sync_http_request(api_url=None, request_params=None, headers=None):
         else:
             raise Exception(f"{str(response.text)}")
     except Exception as e:
-        raise Exception(f"sync_http_request 错误：{e}")
+        raise Exception(f"sync_http_request 错误 「可能输入数据的格式不正确」: {e}，数据{request_params}")
 
 
 
