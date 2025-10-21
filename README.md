@@ -97,7 +97,7 @@ pip install batch-data-test-tool jupyterlab
 
 **coffee_start** - 通用批量处理工具：
 ```python
-from batch_data_test_tool import coffee_start
+from batch_data_test_tool.apps.coffee import coffee_start
 
 # 启动交互式界面
 coffee_start()
@@ -105,7 +105,7 @@ coffee_start()
 
 **black_tea_start** - 高级批量处理工具：
 ```python
-from batch_data_test_tool import black_tea_start
+from batch_data_test_tool.apps.black_tea import black_tea_start
 
 # 启动高级交互式界面
 black_tea_start()
