@@ -95,16 +95,26 @@ pip install batch-data-test-tool jupyterlab
 
 ### 在JupyterLab中使用
 
+**coffee_start** - 通用批量处理工具：
 ```python
-from batch_data_test_tool import cola_start
+from batch_data_test_tool import coffee_start
 
 # 启动交互式界面
-cola_start()
+coffee_start()
+```
+
+**black_tea_start** - 高级批量处理工具：
+```python
+from batch_data_test_tool import black_tea_start
+
+# 启动高级交互式界面
+black_tea_start()
 ```
 
 ### 界面操作步骤
 
-启动`cola_start()`后，按以下步骤操作：
+**coffee_start 操作步骤：**
+启动`coffee_start()`后，按以下步骤操作：
 
 1. **Step001: 选择数据文件** - 从`data/`目录选择CSV或Excel文件
 2. **API配置** - 从`config.json`中选择预配置的API接口
@@ -115,6 +125,35 @@ cola_start()
 7. **Step006: 选择保存列** - 选择要保存的结果列
 8. **Step007: 保存数据** - 自定义文件名保存到`output/`目录
 
+**black_tea_start 操作步骤：**
+启动`black_tea_start()`后，按以下步骤操作：
+
+1. **Step001: 选择数据文件** - 从`data/`目录选择CSV或Excel文件
+2. **Step002: 读取数据** - 点击"读取数据"按钮加载文件
+3. **Step003: 数据预览** - 查看数据前5行
+4. **Step004: 选择数据列** - 将数据列映射到API参数
+5. **Step005: 批量处理** - 发送HTTP请求并处理响应
+6. **Step005.1: 生成结果字段** - 配置并生成解析字段
+7. **Step006: 选择保存列** - 选择要保存的结果列
+8. **Step007: 保存数据** - 自定义文件名保存到`output/`目录
+
+### 工具特点
+
+**coffee_start** - 通用批量处理工具：
+- ✅ **通用性强**：直接存储`response_text`，不做解析，适用于各种API响应格式
+- ✅ **用户自主**：用户可以在获得响应结果后自行解析和处理
+- ✅ **完整记录**：保存完整的请求和响应信息，便于后续分析
+
+**black_tea_start** - 高级批量处理工具：
+- ✅ **智能解析**：自动解析API响应，提取指定字段值
+- ✅ **字段配置**：支持配置多个解析字段，自动生成新列
+- ✅ **灵活映射**：支持复杂JSON路径解析，如`data.result[0].summaryColContent.tags`
+- ✅ **批量生成**：一次性为所有数据生成解析结果
+
+**已废弃**：
+- ❌ `cola_start` - 已废弃，请使用`coffee_start`或`black_tea_start`
+
+
 
 ## 许可证
 
@@ -123,41 +162,6 @@ cola_start()
 ## 贡献
 
 欢迎提交Issue和Pull Request！
-
-## 更新日志
-
-### v1.2.0
-- 🚀 **重大更新 - coffee_start通用批量处理工具**:
-  - 新增`coffee_start`入口，提供通用的批量处理功能
-  - 保存完整Response结果，不做解析，提升通用性
-  - 支持嵌套参数解析，处理复杂API配置结构
-- ⚡ **性能优化**:
-  - 增加并发处理功能，支持多线程批量请求
-  - 动态进度条显示，实时展示处理进度
-  - 自动保存功能，防止大量数据长时间运行丢失
-- 📊 **日志系统**:
-  - 结构化日志记录，包含元数据日志
-  - 每行数据详细日志（数据本身、Request、Response、异常信息）
-  - 日志分离：控制台显示简洁信息，文件记录详细信息
-- 🎯 **界面增强**:
-  - 并发数选择器，可调节处理并发度
-  - 自动保存勾选框，支持处理完成后自动保存
-  - 进度条实时显示处理状态
-
-### v1.1.1
-- ✨ **新增功能**:
-  - 支持JSON配置文件，可配置多个API接口
-  - 动态参数映射，支持数据列与API参数的灵活映射
-  - API配置切换时自动更新参数选择器
-  - 自定义文件名保存功能
-  - 自动创建output目录并保存结果文件
-- 🎯 **界面优化**:
-  - 新增API配置选择器
-  - 动态列选择器，根据API配置自动调整
-  - 自定义文件名输入框
-- 📁 **文件管理**:
-  - 结果文件自动保存到output目录
-  - 支持时间序列命名和自定义命名
 
 
 ## 支持
