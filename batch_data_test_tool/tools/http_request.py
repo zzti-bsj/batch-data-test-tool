@@ -12,7 +12,7 @@ def sync_http_request(api_url=None, request_params=None, headers=None):
         if response.status_code == 200:
             return response
         else:
-            logging.error(f"sync_http_request 错误 「可能输入数据的格式不正确」: {response.status_code}，数据{request_params}")
+            logging.error(f"sync_http_request 错误 「可能输入数据的格式不正确」: {response.status_code} | {response.text}，数据{request_params}")
             # raise Exception(f"{str(response.text)}")
             return None
     except Exception as e:
