@@ -24,7 +24,7 @@ def read_requirements():
 
 setup(
     name="batch-data-test-tool",
-    version="1.2.5",
+    version="1.2.6",
     author="zzti-bsj",
     author_email="otnw_bsj@163.com",
     description="一个用于批量处理数据并发送HTTP请求的Python工具包",

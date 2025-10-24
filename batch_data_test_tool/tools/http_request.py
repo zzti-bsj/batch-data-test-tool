@@ -7,6 +7,13 @@ def sync_http_request(api_url=None, request_params=None, headers=None):
     请求 http 的数据
     """
     try:
+        # 确保请求参数使用UTF-8编码
+        if isinstance(request_params, str):
+            request_params = request_params.encode('utf-8')
+        elif isinstance(request_params, dict):
+            # 如果是字典，转换为JSON字符串并编码
+            request_params = json.dumps(request_params, ensure_ascii=False).encode('utf-8')
+        
         response = requests.post(url=api_url, data=request_params, headers=headers)
         response.encoding = 'utf-8'
         if response.status_code == 200:
