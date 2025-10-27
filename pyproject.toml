@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "batch-data-test-tool"
-version = "1.2.7"
+version = "1.2.8"
 description = "一个用于批量处理数据并发送HTTP请求的Python工具包"
 readme = "README.md"
 requires-python = ">=3.8"

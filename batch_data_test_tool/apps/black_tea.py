@@ -1,8 +1,9 @@
-import os, time
+import os, time, threading
 import logging
 import json
 import pandas as pd
 import ipywidgets as widgets
+from concurrent.futures import ThreadPoolExecutor
 from ..tools.data_processing import read_dataframe_from_file, clean_dataframe_for_json
 from ..tools.http_request import sync_http_request, parse_http_stream_false_response, parse_http_stream_true_response
 from ..tools.http_response import structure_request_params, parse_recall_result_special
@@ -42,6 +43,8 @@ detailed_logger.propagate = False  # 防止传播到根日志器
 # 全局数据
 df = None
 result_data = None  # 存储批量处理的结果
+processing_lock = threading.Lock()  # 处理锁，防止重复执行
+is_processing = False  # 当前是否正在处理
 
 
 # Step000. 选择接口配置
@@ -250,8 +253,22 @@ def process_batch_http_request(
     headers: dict,
     params: str
 ):
-    global preview_response_first
+    global preview_response_first, is_processing
+    
+    # 使用锁防止重复执行
+    with processing_lock:
+        if is_processing:
+            step005_output.append_stdout("⚠️ 已有任务正在执行中，请等待完成\n")
+            return []
+        
+        is_processing = True
+    
     try:
+        # 清空输出区域并重置状态
+        step005_output.clear_output()
+        progress_bar.value = 0
+        step005_output.append_stdout("🚀 开始批量HTTP请求处理...\n\n")
+        
         columns = df.columns.tolist()
         # 保留用户选择的列
         new_df = pd.DataFrame()
@@ -297,73 +314,69 @@ def process_batch_http_request(
                 raise Exception(f"处理第{index}行时出错: {e}")
 
 
-        # 根据构建好的参数来处理结果
-        results = multi_exec(sync_http_request, func_params_dic, max_workers=max_workers_selector.value)
-        
         # 初始化进度条
         total_rows = len(new_df)
         progress_bar.max = total_rows
         progress_bar.value = 0
         
-        for index, response in results.items():
-            # emmm ... 以下解析的逻辑要重写的
-            # 需要实现一系列解析Response的方法组成的Pipeline
+        # 实时并发执行和结果处理 - 改进版本
+        results = {}
+        completed_count = 0
+        lock = threading.Lock()
+        
+        def update_ui_with_result(index, response):
+            """在UI线程中更新结果和日志"""
+            nonlocal completed_count
             exception_message = ''
-            # if stream_parser:
-            #     try:
-            #         answer = parse_http_stream_false_response(response)
-            #     except Exception as e:
-            #         answer = None
-            #         exception_message = f"数据「{index}」解析answer时错误: {str(e)}"
-            #         logging.error(f"数据「{index}」解析answer时错误: {str(e)}")
-            #     try:
-            #         recall_list = parse_http_stream_true_response(response)
-            #     except Exception as e:
-            #         recall_list = []
-            #         exception_message = f"数据「{index}」解析recall_list时错误: {str(e)}"
-            #         logging.error(f"数据「{index}」解析recall_list时错误: {str(e)}")
-                
-            #     # 将列表转换为字符串存储
-            #     new_df.loc[index, 'answer'] = str(answer) if answer is not None else None
-            #     new_df.loc[index, 'recall_list'] = str(recall_list) if recall_list is not None else None
-            # else:
-            #     new_df.loc[index, 'answer'] = None
-            #     new_df.loc[index, 'recall_list'] = None
-
+            
             try:
                 new_df.loc[index, 'response_text'] = response.text
+                status_msg = f"✅ 行{index}: 请求完成\n"
             except Exception as e:
                 new_df.loc[index, 'response_text'] = None
                 exception_message = f"数据「{index}」获取response_text时错误: {str(e)}"
                 logging.error(f"数据「{index}」获取response_text时错误: {str(e)}")
-
-            # 每行处理完response之后落日志（只写入文件，不显示在控制台）
-            if exception_message != '':
-                detailed_logger.error(structured_logging_row_detail(
-                    row_index=index,
-                    row=new_df.loc[index].to_dict(),
-                    max_workers=max_workers_selector.value,
-                    api_url=api_url,
-                    request_params=request_params,
-                    headers=headers,
-                    response=response,
-                    exception_message=exception_message
-                ))
-            else:
-                detailed_logger.info(structured_logging_row_detail(
-                    row_index=index,
-                    row=new_df.loc[index].to_dict(),
-                    max_workers=max_workers_selector.value,
-                    api_url=api_url,
-                    request_params=request_params,
-                    headers=headers,
-                    response=response,
-                    exception_message=None
-                ))
+                status_msg = f"❌ 行{index}: {exception_message}\n"
             
-            # 更新进度条
-            progress_bar.value += 1
+            # 安全更新UI
+            with lock:
+                step005_output.append_stdout(status_msg)
+                completed_count += 1
+                progress_bar.value = completed_count
         
+        def process_future(index, future):
+            """处理单个future的结果"""
+            try:
+                response = future.result()
+                results[index] = response
+                
+                # 使用线程安全的方式更新UI
+                threading.Thread(target=update_ui_with_result, args=(index, response), daemon=True).start()
+                
+            except Exception as e:
+                step005_output.append_stdout(f"❌ 行{index}: 执行失败 - {str(e)}\n")
+                with lock:
+                    completed_count += 1
+                    progress_bar.value = completed_count
+        
+        # 启动并发执行
+        with ThreadPoolExecutor(max_workers=max_workers_selector.value) as executor:
+            futures = {index: executor.submit(sync_http_request, **args) for index, args in func_params_dic.items()}
+            
+            # 为每个future创建监控线程
+            monitor_threads = []
+            for index, future in futures.items():
+                thread = threading.Thread(target=process_future, args=(index, future), daemon=True)
+                thread.start()
+                monitor_threads.append(thread)
+            
+            # 等待所有监控线程完成
+            for thread in monitor_threads:
+                thread.join()
+                
+        # 最终状态更新
+        step005_output.append_stdout(f"\n🎉 所有请求完成！成功: {len([r for r in results.values() if r])}, 总数: {len(func_params_dic)}\n")
+          
         # 清理NaN值，使其能够正确序列化为JSON
         new_df = clean_dataframe_for_json(new_df)
         
@@ -398,22 +411,41 @@ def process_batch_http_request(
                 # 保存所有数据
                 new_df.to_excel(filepath, index=False)
                 logging.info(f"✅ 自动保存完成！文件已保存到: {filepath}")
-                print(f"✅ 自动保存完成！文件已保存到: {filepath}")
+                step005_output.append_stdout(f"💾 自动保存完成！文件已保存到: {filepath}\n")
             except Exception as e:
                 logging.error(f"自动保存失败: {e}")
-                print(f"❌ 自动保存失败: {e}")
+                step005_output.append_stdout(f"❌ 自动保存失败: {e}\n")
         
         return result_data
         
     except Exception as e:
         logging.error(f"批量处理出错: {e}")
-        print(f"❌ 批量处理出错: {e}")
+        step005_output.append_stdout(f"❌ 批量处理出错: {e}\n")
         return []
+        
+    finally:
+        # 确保最终释放处理锁
+        with processing_lock:
+            is_processing = False
 
 # 创建事件处理函数
 def on_process_batch_http_request_clicked(b):
     """批量处理http请求按钮点击事件"""
     global df, result_data
+    
+    # 防止重复点击
+    if is_processing:
+        step005_output.append_stdout("⚠️ 已有任务正在执行中，请等待完成\n")
+        return
+    
+    # 检查必要条件
+    if df is None or columns_selector is None or step000_api_config_selector.value is None:
+        step005_output.append_stdout("❌ 请先加载数据并选择列\n")
+        return
+    
+    # 临时禁用按钮防止重复点击
+    step005_button.disabled = True
+    step005_button.description = "执行中..."
     
     # 记录日志元数据
     logging.info(structured_logging_metadata(
@@ -423,9 +455,10 @@ def on_process_batch_http_request_clicked(b):
         input_shape=df.shape,
         input_number=len(df)
     ))
-    with step005_output:
-        step005_output.clear_output()
-        if df is not None and columns_selector is not None and step000_api_config_selector.value is not None:
+    
+    # 在后台线程中执行处理，避免阻塞UI
+    def execute_processing():
+        try:
             result_data = process_batch_http_request(
                 df, 
                 columns_selector, 
@@ -435,16 +468,29 @@ def on_process_batch_http_request_clicked(b):
                 get_api_headers_by_name(api_name=step000_api_config_selector.value),
                 get_api_params_by_name(api_name=step000_api_config_selector.value)
             )
+            
+            # 在UI线程中更新结果
             if result_data and len(result_data) > 0:
+                step005_output.append_stdout("\n📊 处理结果预览:\n")
                 rd = pd.DataFrame(result_data)
-                display(rd.head())
+                with step005_output:
+                    display(rd.head())
             else:
-                print("❌ 没有处理结果数据")
+                step005_output.append_stdout("❌ 没有处理结果数据\n")
 
             # 更新结果列
             update_available_columns()
-        else:
-            print("❌ 请先加载数据并选择列")
+            
+        except Exception as e:
+            step005_output.append_stdout(f"❌ 执行过程中出错: {str(e)}\n")
+        finally:
+            # 恢复按钮状态
+            step005_button.disabled = False
+            step005_button.description = "批量处理http请求"
+    
+    # 启动处理线程
+    processing_thread = threading.Thread(target=execute_processing, daemon=True)
+    processing_thread.start()
 
 
 step005_button = widgets.Button(
@@ -994,89 +1040,261 @@ def black_tea_start():
     step005_button.on_click(on_process_batch_http_request_clicked)
     step007_button.on_click(on_save_data_clicked)
     
-    # 创建功能性的布局容器
-    def create_control_section(title, controls):
-        """创建操作区域 - 无边框，简洁"""
+    # 创建现代化卡片组件 - 优化版本
+    def create_card(title, controls, icon="📋", color="#4A90E2"):
+        """创建现代化卡片组件"""
         return widgets.VBox([
-            widgets.HTML(f"<h3 style='margin: 15px 0 8px 0; color: #2c3e50;'>{title}</h3>"),
-            widgets.VBox(controls, layout=widgets.Layout(margin='0 0 10px 0'))
-        ])
-    
-    def create_output_section(title, output_widget):
-        """创建输出区域 - 保留边框区分"""
-        return widgets.VBox([
-            widgets.HTML(f"<h4 style='margin: 10px 0 5px 0; color: #27ae60;'>📊 {title}</h4>"),
-            widgets.VBox([output_widget], layout=widgets.Layout(
-                border='1px solid #27ae60',
-                border_radius='5px',
-                padding='10px',
-                background='#f8f9fa'
+            widgets.HTML(f"""
+            <div style="
+                background: linear-gradient(135deg, {color} 0%, {color}CC 100%);
+                color: white;
+                padding: 12px 20px;
+                margin: 0;
+                border-radius: 8px 8px 0 0;
+                font-size: 16px;
+                font-weight: 600;
+                display: flex;
+                align-items: center;
+                box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            ">
+                <span style="margin-right: 8px; font-size: 20px;">{icon}</span>
+                {title}
+            </div>
+            """),
+            widgets.VBox(controls, layout=widgets.Layout(
+                padding='20px',
+                background='white',
+                border='1px solid #e0e0e0',
+                border_top='none',
+                border_radius='0 0 8px 8px',
+                box_shadow='0 4px 8px rgba(0,0,0,0.05)',
+                margin='0 0 15px 0'
             ))
-        ])
+        ], layout=widgets.Layout(
+            background='white',
+            border_radius='8px',
+            margin='10px 0'
+        ))
+    
+    def create_result_section(title, output_widget, icon="📊", color="#27AE60"):
+        """创建结果展示区域"""
+        return widgets.VBox([
+            widgets.HTML(f"""
+            <div style="
+                background: linear-gradient(135deg, {color} 0%, {color}CC 100%);
+                color: white;
+                padding: 10px 20px;
+                margin: 0;
+                border-radius: 8px 8px 0 0;
+                font-size: 14px;
+                font-weight: 600;
+                display: flex;
+                align-items: center;
+            ">
+                <span style="margin-right: 8px; font-size: 18px;">{icon}</span>
+                {title}
+            </div>
+            """),
+            widgets.VBox([output_widget], layout=widgets.Layout(
+                padding='15px',
+                background='#f8f9fa',
+                border='1px solid #e0e0e0',
+                border_top='none',
+                border_radius='0 0 8px 8px',
+                min_height='100px'
+            ))
+        ], layout=widgets.Layout(
+            margin='10px 0'
+        ))
     
     # 主界面布局
     main_interface = widgets.VBox([
-        # 标题
+        # 现代化标题
         widgets.HTML("""
         <div style="
-            text-align: center;
-            background: #34495e;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             color: white;
-            padding: 15px;
-            margin: -10px -10px 20px -10px;
-            border-radius: 5px;
+            padding: 30px;
+            margin: -20px -20px 30px -20px;
+            border-radius: 15px;
+            text-align: center;
+            box-shadow: 0 8px 32px rgba(102, 126, 234, 0.3);
+            position: relative;
+            overflow: hidden;
         ">
-            <h1 style="margin: 0;">📊 批量数据测试工具</h1>
+            <div style="
+                position: absolute;
+                top: -50%;
+                right: -50%;
+                width: 200%;
+                height: 200%;
+                background: radial-gradient(circle, rgba(255,255,255,0.1) 0%, transparent 70%);
+                animation: float 6s ease-in-out infinite;
+            "></div>
+            <h1 style="margin: 0; font-size: 32px; font-weight: 700; position: relative;">
+                🚀 批量数据测试工具
+            </h1>
+            <p style="margin: 10px 0 0 0; font-size: 16px; opacity: 0.9; position: relative;">
+                高效、智能、易用的批量数据处理平台
+            </p>
+            <style>
+                @keyframes float {
+                    0%, 100% { transform: translateY(0px) rotate(0deg); }
+                    50% { transform: translateY(-20px) rotate(180deg); }
+                }
+            </style>
+        </div>
+        """),
+        
+        # 配置区域组
+        widgets.HTML("""
+        <div style="
+            font-size: 18px;
+            font-weight: 600;
+            color: #2c3e50;
+            margin: 20px 0 15px 0;
+            padding-left: 10px;
+            border-left: 4px solid #667eea;
+        ">
+            ⚙️ 基础配置
         </div>
         """),
         
         # Step001 - 文件选择
-        create_control_section("Step001: 选择数据文件", [step001_dropdown]),
+        create_card("Step001: 选择数据文件", [step001_dropdown], icon="📁", color="#3498db"),
         
         # API配置
-        create_control_section("API配置", [step000_api_config_selector]),
+        create_card("API配置", [step000_api_config_selector], icon="🔌", color="#9b59b6"),
         
-        # Step002 - 读取数据
-        create_control_section("Step002: 读取数据", [step002_button]),
-        create_output_section("读取结果", step002_output),
-        
-        # Step003 - 数据预览
-        create_control_section("Step003: 数据预览", [step003_button]),
-        create_output_section("预览结果", step003_output),
-        
-        # Step004 - 列选择
-        create_control_section("Step004: 选择数据列", [columns_container]),
-        
-        # Step004.1 - 列数据展示
-        create_control_section("Step004.1: 列数据详情", [step004_1_button]),
-        create_output_section("列数据结果", step004_1_output),
-    
-        # Step005 - 批量http请求
-        create_control_section("Step005: 批量http请求", [max_workers_selector, progress_bar, auto_save_checkbox, step005_button]),
-        create_output_section("批量http请求结果", step005_output),
-    
-        # Step005.1 - Response解析配置
-        create_control_section("Step005.1: Response解析配置", [add_field_button, manual_update_button, generate_result_fields_button, field_configs_container]),
-        create_output_section("解析配置结果", step005_1_output),
-    
-        # Step006 - 选择要保存的数据列
-        create_control_section("Step006: 选择要保存的数据列", [update_available_columns_button, available_column_selector]),
-        
-        # Step007 - 保存数据
-        create_control_section("Step007: 保存数据", [custom_filename_input, step007_button]),
-        create_output_section("保存数据结果", step007_output),
-        
-        # 使用说明  
+        # 数据处理区域组
         widgets.HTML("""
         <div style="
-            margin: 20px 0 0 0;
-            color: #7f8c8d;
-            font-size: 14px;
+            font-size: 18px;
+            font-weight: 600;
+            color: #2c3e50;
+            margin: 30px 0 15px 0;
+            padding-left: 10px;
+            border-left: 4px solid #27AE60;
         ">
-            💡 <strong>使用说明:</strong> 按照步骤顺序操作，绿色边框区域为输出结果
+            📊 数据处理
+        </div>
+        """),
+        
+        # Step002 - 读取数据
+        create_card("Step002: 读取数据", [step002_button], icon="📖", color="#27AE60"),
+        create_result_section("读取结果", step002_output, icon="📋", color="#27AE60"),
+        
+        # Step003 - 数据预览
+        create_card("Step003: 数据预览", [step003_button], icon="👁️", color="#17a2b8"),
+        create_result_section("预览结果", step003_output, icon="🔍", color="#17a2b8"),
+        
+        # Step004 - 列选择
+        create_card("Step004: 选择数据列", [columns_container], icon="🎯", color="#6c757d"),
+        
+        # Step004.1 - 列数据展示
+        create_card("Step004.1: 列数据详情", [step004_1_button], icon="📝", color="#fd7e14"),
+        create_result_section("列数据结果", step004_1_output, icon="📄", color="#fd7e14"),
+    
+        # 请求处理区域组
+        widgets.HTML("""
+        <div style="
+            font-size: 18px;
+            font-weight: 600;
+            color: #2c3e50;
+            margin: 30px 0 15px 0;
+            padding-left: 10px;
+            border-left: 4px solid #ffc107;
+        ">
+            🌐 请求处理
+        </div>
+        """),
+        
+        # Step005 - 批量http请求
+        create_card("Step005: 批量HTTP请求", [max_workers_selector, progress_bar, auto_save_checkbox, step005_button], icon="🚀", color="#ffc107"),
+        create_result_section("批量请求结果", step005_output, icon="📈", color="#ffc107"),
+    
+        # 响应解析区域组
+        widgets.HTML("""
+        <div style="
+            font-size: 18px;
+            font-weight: 600;
+            color: #2c3e50;
+            margin: 30px 0 15px 0;
+            padding-left: 10px;
+            border-left: 4px solid #e83e8c;
+        ">
+            🔧 响应解析
+        </div>
+        """),
+        
+        # Step005.1 - Response解析配置
+        create_card("Step005.1: Response解析配置", [add_field_button, manual_update_button, generate_result_fields_button, field_configs_container], icon="⚙️", color="#e83e8c"),
+        create_result_section("解析配置结果", step005_1_output, icon="🔬", color="#e83e8c"),
+    
+        # 数据保存区域组
+        widgets.HTML("""
+        <div style="
+            font-size: 18px;
+            font-weight: 600;
+            color: #2c3e50;
+            margin: 30px 0 15px 0;
+            padding-left: 10px;
+            border-left: 4px solid #007bff;
+        ">
+            💾 数据保存
+        </div>
+        """),
+        
+        # Step006 - 选择要保存的数据列
+        create_card("Step006: 选择要保存的数据列", [update_available_columns_button, available_column_selector], icon="☑️", color="#007bff"),
+        
+        # Step007 - 保存数据
+        create_card("Step007: 保存数据", [custom_filename_input, step007_button], icon="💾", color="#28a745"),
+        create_result_section("保存数据结果", step007_output, icon="✅", color="#28a745"),
+        
+        # 现代化页脚
+        widgets.HTML("""
+        <div style="
+            background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+            border-radius: 12px;
+            padding: 25px;
+            margin: 30px 0 0 0;
+            text-align: center;
+            border: 1px solid #dee2e6;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+        ">
+            <div style="
+                display: flex;
+                justify-content: center;
+                align-items: center;
+                margin-bottom: 15px;
+            ">
+                <span style="font-size: 24px; margin-right: 10px;">💡</span>
+                <span style="font-size: 16px; font-weight: 600; color: #495057;">
+                    使用说明
+                </span>
+            </div>
+            <p style="margin: 0; color: #6c757d; font-size: 14px; line-height: 1.5;">
+                按照步骤顺序操作，每个区域都有清晰的视觉指引。绿色区域为输出结果，蓝色区域为配置操作。
+            </p>
+            <div style="
+                margin-top: 15px;
+                padding-top: 15px;
+                border-top: 1px solid #dee2e6;
+                font-size: 12px;
+                color: #adb5bd;
+            ">
+                🎨 现代化界面设计 | 提升用户体验
+            </div>
         </div>
         """)
-    ], layout=widgets.Layout(width='100%'))
+    ], layout=widgets.Layout(
+        width='100%',
+        padding='20px',
+        background='linear-gradient(135deg, #f8f9fa 0%, #ffffff 100%)',
+        border_radius='15px',
+        box_shadow='0 8px 32px rgba(0,0,0,0.1)'
+    ))
     
     # 显示界面
     display(main_interface)
