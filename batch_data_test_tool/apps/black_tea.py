@@ -405,11 +405,11 @@ def process_batch_http_request(
                 # 生成文件名
                 from datetime import datetime
                 timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-                filename = f"auto_save_{timestamp}.xlsx"
+                filename = f"auto_save_{timestamp}.csv"
                 filepath = os.path.join(output_dir, filename)
                 
                 # 保存所有数据
-                new_df.to_excel(filepath, index=False)
+                new_df.to_csv(filepath, index=False)
                 logging.info(f"✅ 自动保存完成！文件已保存到: {filepath}")
                 step005_output.append_stdout(f"💾 自动保存完成！文件已保存到: {filepath}\n")
             except Exception as e:
@@ -994,15 +994,15 @@ def on_save_data_clicked(b):
                 custom_name = custom_filename_input.value.strip()
                 if custom_name:
                     # 使用用户自定义文件名
-                    filename = f"{custom_name}.xlsx"
+                    filename = f"{custom_name}.csv"
                 else:
                     # 使用默认时间序列文件名
                     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-                    filename = f"batch_test_result_{timestamp}.xlsx"
+                    filename = f"batch_test_result_{timestamp}.csv"
                 filepath = os.path.join(output_dir, filename)
                 
                 # 保存文件
-                selected_df.to_excel(filepath, index=False)
+                selected_df.to_csv(filepath, index=False)
                 logging.info(f"✅ 文件已保存到: {filepath}")
                 
             except Exception as e:
