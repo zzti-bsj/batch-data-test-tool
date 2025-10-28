@@ -5,7 +5,7 @@
 支持CSV和Excel文件读取，提供交互式Jupyter界面。
 """
 
-__version__ = "1.2.10"
+__version__ = "1.2.12"
 __author__ = "zzti-bsj"
 __email__ = "otnw_bsj@163.com"
 
