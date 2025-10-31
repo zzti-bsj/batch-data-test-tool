@@ -96,9 +96,8 @@ def on_read_button_clicked(b):
 step002_button = widgets.Button(
     description='读取数据',
     disabled=False,
-    button_style='success',
-    tooltip='点击读取选中的数据文件',
-    icon='check'
+    button_style='',
+    tooltip='点击读取选中的数据文件'
 )
 
 # Step003. 数据预览
@@ -118,9 +117,8 @@ def on_display_button_clicked(b):
 step003_button = widgets.Button(
     description=f'前5行数据预览',
     disabled=False,
-    button_style='info',
-    tooltip='展示数据的详细信息',
-    icon='table'
+    button_style='',
+    tooltip='展示数据的详细信息'
 )
 
 # Step004. 列选择器
@@ -204,9 +202,8 @@ def on_show_column_clicked(b):
 step004_1_button = widgets.Button(
     description='展示选中列数据',
     disabled=False,
-    button_style='warning',
-    tooltip='展示选中列的详细数据',
-    icon='list'
+    button_style='',
+    tooltip='展示选中列的详细数据'
 )
 
 # 并发数选择器
@@ -226,9 +223,9 @@ progress_bar = widgets.IntProgress(
     min=0,
     max=100,
     description='处理进度:',
-    bar_style='info',
+    bar_style='',
     orientation='horizontal',
-    style={'bar_color': '#28a745'},
+    style={'bar_color': '#6c757d'},
     layout=widgets.Layout(width='100%')
 )
 
@@ -496,9 +493,8 @@ def on_process_batch_http_request_clicked(b):
 step005_button = widgets.Button(
     description='批量处理http请求',
     disabled=False,
-    button_style='warning',
-    tooltip='批量处理http请求',
-    icon='list'
+    button_style='',
+    tooltip='批量处理http请求'
 )
 
 
@@ -513,27 +509,24 @@ preview_response_first = None
 add_field_button = widgets.Button(
     description='新增解析字段',
     disabled=False,
-    button_style='info',
-    tooltip='添加新的响应解析字段',
-    icon='plus'
+    button_style='',
+    tooltip='添加新的响应解析字段'
 )
 
 # 手动更新字段路径按钮
 manual_update_button = widgets.Button(
     description='手动更新字段路径',
     disabled=False,
-    button_style='warning',
-    tooltip='手动更新所有字段的路径选项',
-    icon='refresh'
+    button_style='',
+    tooltip='手动更新所有字段的路径选项'
 )
 
 # 生成结果字段按钮
 generate_result_fields_button = widgets.Button(
     description='生成结果字段',
     disabled=False,
-    button_style='success',
-    tooltip='根据配置的解析器处理所有response_text数据并生成新字段',
-    icon='cog'
+    button_style='',
+    tooltip='根据配置的解析器处理所有response_text数据并生成新字段'
 )
 
 # 字段配置容器
@@ -636,18 +629,16 @@ def create_field_config_widgets(field_config):
     preview_button = widgets.Button(
         description='预解析',
         disabled=True,
-        button_style='success',
-        tooltip='预览解析结果',
-        icon='eye'
+        button_style='',
+        tooltip='预览解析结果'
     )
     
     # 删除按钮
     delete_button = widgets.Button(
         description='删除',
         disabled=False,
-        button_style='danger',
-        tooltip='删除此字段配置',
-        icon='trash'
+        button_style='',
+        tooltip='删除此字段配置'
     )
     
     # 预解析结果输出
@@ -797,7 +788,7 @@ def update_field_configs_container():
         
         # 创建字段配置的UI布局
         field_ui = widgets.VBox([
-            widgets.HTML(f"<h4 style='margin: 10px 0 5px 0; color: #3498db;'>字段配置 {i+1}</h4>"),
+            widgets.HTML(f"<h4 style='margin: 10px 0 5px 0; color: #495057;'>字段配置 {i+1}</h4>"),
             widgets.HBox([
                 widgets_list['field_name'],
                 widgets_list['parsing_method'],
@@ -807,7 +798,7 @@ def update_field_configs_container():
             ]),
             widgets_list['preview_output']
         ], layout=widgets.Layout(
-            border='1px solid #bdc3c7',
+            border='1px solid #dee2e6',
             border_radius='5px',
             padding='10px',
             margin='5px 0'
@@ -922,9 +913,8 @@ available_column_selector = widgets.SelectMultiple(
 update_available_columns_button = widgets.Button(
     description='更新可选字段',
     disabled=False,
-    button_style='info',
-    tooltip='刷新获取DataFrame的所有字段列',
-    icon='refresh'
+    button_style='',
+    tooltip='刷新获取DataFrame的所有字段列'
 )
 
 # 更新列选择器的函数（支持多选）
@@ -1016,7 +1006,7 @@ def on_save_data_clicked(b):
 step007_button = widgets.Button(
     description='保存选中列到文件',
     disabled=False,
-    button_style='primary',
+    button_style='',
     tooltip='将选中的多列数据保存到CSV文件'
 )
 
@@ -1040,14 +1030,14 @@ def black_tea_start():
     step005_button.on_click(on_process_batch_http_request_clicked)
     step007_button.on_click(on_save_data_clicked)
     
-    # 创建现代化卡片组件 - 优化版本
-    def create_card(title, controls, icon="📋", color="#4A90E2"):
+    # 创建现代化卡片组件 - 低调版本
+    def create_card(title, controls):
         """创建现代化卡片组件"""
         return widgets.VBox([
             widgets.HTML(f"""
             <div style="
-                background: linear-gradient(135deg, {color} 0%, {color}CC 100%);
-                color: white;
+                background: #f8f9fa;
+                color: #495057;
                 padding: 12px 20px;
                 margin: 0;
                 border-radius: 8px 8px 0 0;
@@ -1055,19 +1045,18 @@ def black_tea_start():
                 font-weight: 600;
                 display: flex;
                 align-items: center;
-                box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+                border: 1px solid #dee2e6;
+                border-bottom: none;
             ">
-                <span style="margin-right: 8px; font-size: 20px;">{icon}</span>
                 {title}
             </div>
             """),
             widgets.VBox(controls, layout=widgets.Layout(
                 padding='20px',
                 background='white',
-                border='1px solid #e0e0e0',
+                border='1px solid #dee2e6',
                 border_top='none',
                 border_radius='0 0 8px 8px',
-                box_shadow='0 4px 8px rgba(0,0,0,0.05)',
                 margin='0 0 15px 0'
             ))
         ], layout=widgets.Layout(
@@ -1076,13 +1065,13 @@ def black_tea_start():
             margin='10px 0'
         ))
     
-    def create_result_section(title, output_widget, icon="📊", color="#27AE60"):
+    def create_result_section(title, output_widget):
         """创建结果展示区域"""
         return widgets.VBox([
             widgets.HTML(f"""
             <div style="
-                background: linear-gradient(135deg, {color} 0%, {color}CC 100%);
-                color: white;
+                background: #e9ecef;
+                color: #495057;
                 padding: 10px 20px;
                 margin: 0;
                 border-radius: 8px 8px 0 0;
@@ -1090,15 +1079,16 @@ def black_tea_start():
                 font-weight: 600;
                 display: flex;
                 align-items: center;
+                border: 1px solid #dee2e6;
+                border-bottom: none;
             ">
-                <span style="margin-right: 8px; font-size: 18px;">{icon}</span>
                 {title}
             </div>
             """),
             widgets.VBox([output_widget], layout=widgets.Layout(
                 padding='15px',
-                background='#f8f9fa',
-                border='1px solid #e0e0e0',
+                background='white',
+                border='1px solid #dee2e6',
                 border_top='none',
                 border_radius='0 0 8px 8px',
                 min_height='100px'
@@ -1109,40 +1099,23 @@ def black_tea_start():
     
     # 主界面布局
     main_interface = widgets.VBox([
-        # 现代化标题
+        # 简洁标题
         widgets.HTML("""
         <div style="
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: white;
+            background: #f8f9fa;
+            color: #495057;
             padding: 30px;
             margin: -20px -20px 30px -20px;
-            border-radius: 15px;
+            border-radius: 8px;
             text-align: center;
-            box-shadow: 0 8px 32px rgba(102, 126, 234, 0.3);
-            position: relative;
-            overflow: hidden;
+            border: 1px solid #dee2e6;
         ">
-            <div style="
-                position: absolute;
-                top: -50%;
-                right: -50%;
-                width: 200%;
-                height: 200%;
-                background: radial-gradient(circle, rgba(255,255,255,0.1) 0%, transparent 70%);
-                animation: float 6s ease-in-out infinite;
-            "></div>
-            <h1 style="margin: 0; font-size: 32px; font-weight: 700; position: relative;">
-                🚀 批量数据测试工具
+            <h1 style="margin: 0; font-size: 28px; font-weight: 600; position: relative;">
+                批量数据测试工具
             </h1>
-            <p style="margin: 10px 0 0 0; font-size: 16px; opacity: 0.9; position: relative;">
-                高效、智能、易用的批量数据处理平台
+            <p style="margin: 10px 0 0 0; font-size: 14px; color: #6c757d; position: relative;">
+                简洁、高效、实用的批量数据处理工具
             </p>
-            <style>
-                @keyframes float {
-                    0%, 100% { transform: translateY(0px) rotate(0deg); }
-                    50% { transform: translateY(-20px) rotate(180deg); }
-                }
-            </style>
         </div>
         """),
         
@@ -1151,149 +1124,136 @@ def black_tea_start():
         <div style="
             font-size: 18px;
             font-weight: 600;
-            color: #2c3e50;
+            color: #495057;
             margin: 20px 0 15px 0;
             padding-left: 10px;
-            border-left: 4px solid #667eea;
+            border-left: 3px solid #6c757d;
         ">
-            ⚙️ 基础配置
+            基础配置
         </div>
         """),
         
         # Step001 - 文件选择
-        create_card("Step001: 选择数据文件", [step001_dropdown], icon="📁", color="#3498db"),
+        create_card("Step001: 选择数据文件", [step001_dropdown]),
         
         # API配置
-        create_card("API配置", [step000_api_config_selector], icon="🔌", color="#9b59b6"),
+        create_card("API配置", [step000_api_config_selector]),
         
         # 数据处理区域组
         widgets.HTML("""
         <div style="
             font-size: 18px;
             font-weight: 600;
-            color: #2c3e50;
+            color: #495057;
             margin: 30px 0 15px 0;
             padding-left: 10px;
-            border-left: 4px solid #27AE60;
+            border-left: 3px solid #6c757d;
         ">
-            📊 数据处理
+            数据处理
         </div>
         """),
         
         # Step002 - 读取数据
-        create_card("Step002: 读取数据", [step002_button], icon="📖", color="#27AE60"),
-        create_result_section("读取结果", step002_output, icon="📋", color="#27AE60"),
+        create_card("Step002: 读取数据", [step002_button]),
+        create_result_section("读取结果", step002_output),
         
         # Step003 - 数据预览
-        create_card("Step003: 数据预览", [step003_button], icon="👁️", color="#17a2b8"),
-        create_result_section("预览结果", step003_output, icon="🔍", color="#17a2b8"),
+        create_card("Step003: 数据预览", [step003_button]),
+        create_result_section("预览结果", step003_output),
         
         # Step004 - 列选择
-        create_card("Step004: 选择数据列", [columns_container], icon="🎯", color="#6c757d"),
+        create_card("Step004: 选择数据列", [columns_container]),
         
         # Step004.1 - 列数据展示
-        create_card("Step004.1: 列数据详情", [step004_1_button], icon="📝", color="#fd7e14"),
-        create_result_section("列数据结果", step004_1_output, icon="📄", color="#fd7e14"),
+        create_card("Step004.1: 列数据详情", [step004_1_button]),
+        create_result_section("列数据结果", step004_1_output),
     
         # 请求处理区域组
         widgets.HTML("""
         <div style="
             font-size: 18px;
             font-weight: 600;
-            color: #2c3e50;
+            color: #495057;
             margin: 30px 0 15px 0;
             padding-left: 10px;
-            border-left: 4px solid #ffc107;
+            border-left: 3px solid #6c757d;
         ">
-            🌐 请求处理
+            请求处理
         </div>
         """),
         
         # Step005 - 批量http请求
-        create_card("Step005: 批量HTTP请求", [max_workers_selector, progress_bar, auto_save_checkbox, step005_button], icon="🚀", color="#ffc107"),
-        create_result_section("批量请求结果", step005_output, icon="📈", color="#ffc107"),
+        create_card("Step005: 批量HTTP请求", [max_workers_selector, progress_bar, auto_save_checkbox, step005_button]),
+        create_result_section("批量请求结果", step005_output),
     
         # 响应解析区域组
         widgets.HTML("""
         <div style="
             font-size: 18px;
             font-weight: 600;
-            color: #2c3e50;
+            color: #495057;
             margin: 30px 0 15px 0;
             padding-left: 10px;
-            border-left: 4px solid #e83e8c;
+            border-left: 3px solid #6c757d;
         ">
-            🔧 响应解析
+            响应解析
         </div>
         """),
         
         # Step005.1 - Response解析配置
-        create_card("Step005.1: Response解析配置", [add_field_button, manual_update_button, generate_result_fields_button, field_configs_container], icon="⚙️", color="#e83e8c"),
-        create_result_section("解析配置结果", step005_1_output, icon="🔬", color="#e83e8c"),
+        create_card("Step005.1: Response解析配置", [add_field_button, manual_update_button, generate_result_fields_button, field_configs_container]),
+        create_result_section("解析配置结果", step005_1_output),
     
         # 数据保存区域组
         widgets.HTML("""
         <div style="
             font-size: 18px;
             font-weight: 600;
-            color: #2c3e50;
+            color: #495057;
             margin: 30px 0 15px 0;
             padding-left: 10px;
-            border-left: 4px solid #007bff;
+            border-left: 3px solid #6c757d;
         ">
-            💾 数据保存
+            数据保存
         </div>
         """),
         
         # Step006 - 选择要保存的数据列
-        create_card("Step006: 选择要保存的数据列", [update_available_columns_button, available_column_selector], icon="☑️", color="#007bff"),
+        create_card("Step006: 选择要保存的数据列", [update_available_columns_button, available_column_selector]),
         
         # Step007 - 保存数据
-        create_card("Step007: 保存数据", [custom_filename_input, step007_button], icon="💾", color="#28a745"),
-        create_result_section("保存数据结果", step007_output, icon="✅", color="#28a745"),
+        create_card("Step007: 保存数据", [custom_filename_input, step007_button]),
+        create_result_section("保存数据结果", step007_output),
         
-        # 现代化页脚
+        # 简洁页脚
         widgets.HTML("""
         <div style="
-            background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
-            border-radius: 12px;
-            padding: 25px;
+            background: #f8f9fa;
+            border-radius: 8px;
+            padding: 20px;
             margin: 30px 0 0 0;
             text-align: center;
             border: 1px solid #dee2e6;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.05);
         ">
             <div style="
-                display: flex;
-                justify-content: center;
-                align-items: center;
-                margin-bottom: 15px;
+                font-size: 14px; 
+                font-weight: 600; 
+                color: #495057;
+                margin-bottom: 10px;
             ">
-                <span style="font-size: 24px; margin-right: 10px;">💡</span>
-                <span style="font-size: 16px; font-weight: 600; color: #495057;">
-                    使用说明
-                </span>
+                使用说明
             </div>
-            <p style="margin: 0; color: #6c757d; font-size: 14px; line-height: 1.5;">
-                按照步骤顺序操作，每个区域都有清晰的视觉指引。绿色区域为输出结果，蓝色区域为配置操作。
+            <p style="margin: 0; color: #6c757d; font-size: 13px; line-height: 1.5;">
+                按照步骤顺序操作，灰色标题区域为输出结果，白色区域为配置操作。
             </p>
-            <div style="
-                margin-top: 15px;
-                padding-top: 15px;
-                border-top: 1px solid #dee2e6;
-                font-size: 12px;
-                color: #adb5bd;
-            ">
-                🎨 现代化界面设计 | 提升用户体验
-            </div>
         </div>
         """)
     ], layout=widgets.Layout(
         width='100%',
         padding='20px',
-        background='linear-gradient(135deg, #f8f9fa 0%, #ffffff 100%)',
-        border_radius='15px',
-        box_shadow='0 8px 32px rgba(0,0,0,0.1)'
+        background='white',
+        border_radius='8px',
+        border='1px solid #dee2e6'
     ))
     
     # 显示界面

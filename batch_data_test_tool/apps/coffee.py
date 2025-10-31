@@ -93,9 +93,8 @@ def on_read_button_clicked(b):
 step002_button = widgets.Button(
     description='读取数据',
     disabled=False,
-    button_style='success',
-    tooltip='点击读取选中的数据文件',
-    icon='check'
+    button_style='',
+    tooltip='点击读取选中的数据文件'
 )
 
 # Step003. 数据预览
@@ -115,9 +114,8 @@ def on_display_button_clicked(b):
 step003_button = widgets.Button(
     description=f'前5行数据预览',
     disabled=False,
-    button_style='info',
-    tooltip='展示数据的详细信息',
-    icon='table'
+    button_style='',
+    tooltip='展示数据的详细信息'
 )
 
 # Step004. 列选择器
@@ -201,9 +199,8 @@ def on_show_column_clicked(b):
 step004_1_button = widgets.Button(
     description='展示选中列数据',
     disabled=False,
-    button_style='warning',
-    tooltip='展示选中列的详细数据',
-    icon='list'
+    button_style='',
+    tooltip='展示选中列的详细数据'
 )
 
 # 并发数选择器
@@ -443,9 +440,8 @@ def on_process_batch_http_request_clicked(b):
 step005_button = widgets.Button(
     description='批量处理http请求',
     disabled=False,
-    button_style='warning',
-    tooltip='批量处理http请求',
-    icon='list'
+    button_style='',
+    tooltip='批量处理http请求'
 )
 
 
@@ -542,7 +538,7 @@ def on_save_data_clicked(b):
 step007_button = widgets.Button(
     description='保存选中列到文件',
     disabled=False,
-    button_style='primary',
+    button_style='',
     tooltip='将选中的多列数据保存到CSV文件'
 )
 
@@ -566,16 +562,16 @@ def coffee_start():
     def create_control_section(title, controls):
         """创建操作区域 - 无边框，简洁"""
         return widgets.VBox([
-            widgets.HTML(f"<h3 style='margin: 15px 0 8px 0; color: #2c3e50;'>{title}</h3>"),
+            widgets.HTML(f"<h3 style='margin: 15px 0 8px 0; color: #495057;'>{title}</h3>"),
             widgets.VBox(controls, layout=widgets.Layout(margin='0 0 10px 0'))
         ])
     
     def create_output_section(title, output_widget):
         """创建输出区域 - 保留边框区分"""
         return widgets.VBox([
-            widgets.HTML(f"<h4 style='margin: 10px 0 5px 0; color: #27ae60;'>📊 {title}</h4>"),
+            widgets.HTML(f"<h4 style='margin: 10px 0 5px 0; color: #6c757d;'>{title}</h4>"),
             widgets.VBox([output_widget], layout=widgets.Layout(
-                border='1px solid #27ae60',
+                border='1px solid #dee2e6',
                 border_radius='5px',
                 padding='10px',
                 background='#f8f9fa'
@@ -588,13 +584,14 @@ def coffee_start():
         widgets.HTML("""
         <div style="
             text-align: center;
-            background: #34495e;
-            color: white;
+            background: #f8f9fa;
+            color: #495057;
             padding: 15px;
             margin: -10px -10px 20px -10px;
             border-radius: 5px;
+            border: 1px solid #dee2e6;
         ">
-            <h1 style="margin: 0;">📊 批量数据测试工具</h1>
+            <h1 style="margin: 0;">批量数据测试工具</h1>
         </div>
         """),
         
@@ -637,7 +634,7 @@ def coffee_start():
             color: #7f8c8d;
             font-size: 14px;
         ">
-            💡 <strong>使用说明:</strong> 按照步骤顺序操作，绿色边框区域为输出结果
+            <strong>使用说明:</strong> 按照步骤顺序操作，灰色边框区域为输出结果
         </div>
         """)
     ], layout=widgets.Layout(width='100%'))
