@@ -328,8 +328,14 @@ def process_batch_http_request(
 
             try:
                 new_df.loc[index, 'response_text'] = response.text
+                # 记录响应时间
+                if response is not None and hasattr(response, 'response_time'):
+                    new_df.loc[index, 'response_time'] = response.response_time
+                else:
+                    new_df.loc[index, 'response_time'] = None
             except Exception as e:
                 new_df.loc[index, 'response_text'] = None
+                new_df.loc[index, 'response_time'] = None
                 exception_message = f"数据「{index}」获取response_text时错误: {str(e)}"
                 logging.error(f"数据「{index}」获取response_text时错误: {str(e)}")
 

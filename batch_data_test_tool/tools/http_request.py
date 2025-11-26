@@ -2,6 +2,7 @@ import logging
 import json
 import requests
 import re
+import time
 
 def clean_control_characters(text):
     """
@@ -95,6 +96,9 @@ def sync_http_request(api_url=None, request_params=None, headers=None):
     """
     请求 http 的数据
     """
+    # 记录请求开始时间
+    start_time = time.time()
+    
     try:
         # 设置默认headers
         if headers is None:
@@ -153,6 +157,13 @@ def sync_http_request(api_url=None, request_params=None, headers=None):
             logging.debug(f"其他类型参数: {type(request_params)}")
             response = requests.post(url=api_url, data=request_params, headers=headers)
         
+        # 记录请求结束时间并计算响应时间（秒）
+        end_time = time.time()
+        response_time = end_time - start_time
+        
+        # 将响应时间附加到response对象上（单位：秒，保留3位小数）
+        response.response_time = round(response_time, 3)
+        
         response.encoding = 'utf-8'
         
         if response.status_code == 200:
@@ -184,19 +195,27 @@ def sync_http_request(api_url=None, request_params=None, headers=None):
             return None
             
     except json.JSONDecodeError as e:
+        # 记录请求结束时间（即使出错）
+        end_time = time.time()
+        response_time = round(end_time - start_time, 3)
         logging.error(f"JSON解析错误: {e}")
         logging.error(f"请求URL: {api_url}")
         logging.error(f"请求参数类型: {type(request_params)}")
         logging.error(f"请求参数内容: {request_params}")
         logging.error(f"请求头: {headers}")
+        logging.error(f"响应时间: {response_time}秒")
         return None
     except Exception as e:
+        # 记录请求结束时间（即使出错）
+        end_time = time.time()
+        response_time = round(end_time - start_time, 3)
         logging.error(f"sync_http_request 错误: {e}")
         logging.error(f"请求URL: {api_url}")
         logging.error(f"请求参数类型: {type(request_params)}")
         logging.error(f"请求参数内容: {request_params}")
         logging.error(f"请求头: {headers}")
         logging.error(f"异常类型: {type(e).__name__}")
+        logging.error(f"响应时间: {response_time}秒")
         return None
 
 

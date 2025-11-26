@@ -326,14 +326,29 @@ def process_batch_http_request(
             nonlocal completed_count
             exception_message = ''
             
-            try:
-                new_df.loc[index, 'response_text'] = response.text
-                status_msg = f"✅ 行{index}: 请求完成\n"
-            except Exception as e:
+            # 如果response为None（请求失败），直接处理
+            if response is None:
                 new_df.loc[index, 'response_text'] = None
-                exception_message = f"数据「{index}」获取response_text时错误: {str(e)}"
-                logging.error(f"数据「{index}」获取response_text时错误: {str(e)}")
-                status_msg = f"❌ 行{index}: {exception_message}\n"
+                new_df.loc[index, 'response_time'] = None
+                status_msg = f"❌ 行{index}: 请求失败\n"
+            else:
+                try:
+                    new_df.loc[index, 'response_text'] = response.text
+                    # 记录响应时间
+                    if hasattr(response, 'response_time'):
+                        new_df.loc[index, 'response_time'] = response.response_time
+                    else:
+                        new_df.loc[index, 'response_time'] = None
+                    status_msg = f"✅ 行{index}: 请求完成"
+                    if hasattr(response, 'response_time'):
+                        status_msg += f" (响应时间: {response.response_time}秒)"
+                    status_msg += "\n"
+                except Exception as e:
+                    new_df.loc[index, 'response_text'] = None
+                    new_df.loc[index, 'response_time'] = None
+                    exception_message = f"数据「{index}」获取response_text时错误: {str(e)}"
+                    logging.error(f"数据「{index}」获取response_text时错误: {str(e)}")
+                    status_msg = f"❌ 行{index}: {exception_message}\n"
             
             # 安全更新UI
             with lock:
@@ -351,6 +366,8 @@ def process_batch_http_request(
                 threading.Thread(target=update_ui_with_result, args=(index, response), daemon=True).start()
                 
             except Exception as e:
+                new_df.loc[index, 'response_time'] = None
+                new_df.loc[index, 'response_text'] = None
                 step005_output.append_stdout(f"❌ 行{index}: 执行失败 - {str(e)}\n")
                 with lock:
                     completed_count += 1

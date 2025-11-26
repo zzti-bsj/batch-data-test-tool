@@ -224,6 +224,12 @@ def process_batch_http_request(
                 # 只构建参数列表
                 response = sync_http_request(api_url, request_params, headers)
                 
+                # 记录响应时间
+                if response is not None and hasattr(response, 'response_time'):
+                    new_df.loc[index, 'response_time'] = response.response_time
+                else:
+                    new_df.loc[index, 'response_time'] = None
+                
                 if stream_parser:
                     answer = parse_http_stream_false_response(response)
                     # 当没有召回的时候
@@ -249,7 +255,8 @@ def process_batch_http_request(
                 # 添加错误结果
                 parsed_result.append({
                     'answer': f"处理失败: {str(e)}",
-                    'recall_list': None
+                    'recall_list': None,
+                    'response_time': None
                 })
             # print(res)
             # 处理完一条数据
