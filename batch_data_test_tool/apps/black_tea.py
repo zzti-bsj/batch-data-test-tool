@@ -229,6 +229,12 @@ progress_bar = widgets.IntProgress(
     layout=widgets.Layout(width='100%')
 )
 
+# 进度值显示文本
+progress_text = widgets.HTML(
+    value='<div style="text-align: center; color: #495057; font-size: 14px; margin-top: 5px;">0/0</div>',
+    layout=widgets.Layout(width='100%')
+)
+
 # 自动保存勾选框
 auto_save_checkbox = widgets.Checkbox(
     value=False,
@@ -264,7 +270,8 @@ def process_batch_http_request(
         # 清空输出区域并重置状态
         step005_output.clear_output()
         progress_bar.value = 0
-        step005_output.append_stdout("🚀 开始批量HTTP请求处理...\n\n")
+        progress_text.value = '<div style="text-align: center; color: #495057; font-size: 14px; margin-top: 5px;">0/0</div>'
+        step005_output.append_stdout("🚀 开始批量HTTP请求处理...\n")
         
         columns = df.columns.tolist()
         # 保留用户选择的列
@@ -315,6 +322,7 @@ def process_batch_http_request(
         total_rows = len(new_df)
         progress_bar.max = total_rows
         progress_bar.value = 0
+        progress_text.value = f'<div style="text-align: center; color: #495057; font-size: 14px; margin-top: 5px;">0/{total_rows}</div>'
         
         # 实时并发执行和结果处理 - 改进版本
         results = {}
@@ -325,12 +333,13 @@ def process_batch_http_request(
             """在UI线程中更新结果和日志"""
             nonlocal completed_count
             exception_message = ''
+            is_error = False
             
             # 如果response为None（请求失败），直接处理
             if response is None:
                 new_df.loc[index, 'response_text'] = None
                 new_df.loc[index, 'response_time'] = None
-                status_msg = f"❌ 行{index}: 请求失败\n"
+                is_error = True
             else:
                 try:
                     new_df.loc[index, 'response_text'] = response.text
@@ -339,22 +348,25 @@ def process_batch_http_request(
                         new_df.loc[index, 'response_time'] = response.response_time
                     else:
                         new_df.loc[index, 'response_time'] = None
-                    status_msg = f"✅ 行{index}: 请求完成"
-                    if hasattr(response, 'response_time'):
-                        status_msg += f" (响应时间: {response.response_time}秒)"
-                    status_msg += "\n"
                 except Exception as e:
                     new_df.loc[index, 'response_text'] = None
                     new_df.loc[index, 'response_time'] = None
                     exception_message = f"数据「{index}」获取response_text时错误: {str(e)}"
-                    logging.error(f"数据「{index}」获取response_text时错误: {str(e)}")
-                    status_msg = f"❌ 行{index}: {exception_message}\n"
+                    detailed_logger.error(f"数据「{index}」获取response_text时错误: {str(e)}")
+                    is_error = True
             
-            # 安全更新UI
+            # 安全更新UI - 只输出错误，更新进度条并显示进度值
             with lock:
-                step005_output.append_stdout(status_msg)
                 completed_count += 1
                 progress_bar.value = completed_count
+                # 更新进度值文本显示
+                progress_text.value = f'<div style="text-align: center; color: #495057; font-size: 14px; margin-top: 5px;">{completed_count}/{total_rows}</div>'
+                # 只输出错误信息，成功的静默处理
+                if is_error:
+                    if response is None:
+                        step005_output.append_stdout(f"❌ 行{index}: 请求失败\n")
+                    elif exception_message:
+                        step005_output.append_stdout(f"❌ 行{index}: {exception_message}\n")
         
         def process_future(index, future):
             """处理单个future的结果"""
@@ -368,10 +380,18 @@ def process_batch_http_request(
             except Exception as e:
                 new_df.loc[index, 'response_time'] = None
                 new_df.loc[index, 'response_text'] = None
-                step005_output.append_stdout(f"❌ 行{index}: 执行失败 - {str(e)}\n")
+                detailed_logger.error(f"行{index}: 执行失败 - {str(e)}")
                 with lock:
                     completed_count += 1
                     progress_bar.value = completed_count
+                    # 更新进度值文本显示
+                    progress_text.value = f'<div style="text-align: center; color: #495057; font-size: 14px; margin-top: 5px;">{completed_count}/{total_rows}</div>'
+                    # 输出错误信息
+                    step005_output.append_stdout(f"❌ 行{index}: 执行失败 - {str(e)}\n")
+                    # 更新进度条描述，显示进度值
+                    progress_bar.description = f'处理进度: {completed_count}/{total_rows}'
+                    # 输出错误信息
+                    step005_output.append_stdout(f"❌ 行{index}: 执行失败 - {str(e)}\n")
         
         # 启动并发执行
         with ThreadPoolExecutor(max_workers=max_workers_selector.value) as executor:
@@ -1200,7 +1220,7 @@ def black_tea_start():
         """),
         
         # Step005 - 批量http请求
-        create_card("Step005: 批量HTTP请求", [max_workers_selector, progress_bar, auto_save_checkbox, step005_button]),
+        create_card("Step005: 批量HTTP请求", [max_workers_selector, progress_bar, progress_text, auto_save_checkbox, step005_button]),
         create_result_section("批量请求结果", step005_output),
     
         # 响应解析区域组
