@@ -8,7 +8,7 @@ from ..tools.data_processing import read_dataframe_from_file, clean_dataframe_fo
 from ..tools.http_request import sync_http_request, parse_http_stream_false_response, parse_http_stream_true_response
 from ..tools.http_response import structure_request_params, parse_recall_result_special
 from ..tools import DATA_PROCESSING_METHODS, RESPONSE_PARSING_METHODS, get_json_field_value, get_all_json_keys
-from ..tools.get_config import get_api_url_name_list, get_api_params_placeholder_list_by_name, get_api_url_by_name, get_api_headers_by_name, get_api_params_by_name
+from ..tools.get_config import get_api_url_name_list, get_api_params_placeholder_list_by_name, get_api_url_by_name, get_api_headers_by_name, get_api_params_by_name, get_api_timeout_by_name
 from IPython.display import display
 from ..concurrency.multi_threading import multi_exec
 from ..tools.structured_log import structured_logging_metadata, structured_logging_row_detail
@@ -254,9 +254,10 @@ def process_batch_http_request(
     data_processing_methods: list,
     api_url: str,
     headers: dict,
-    params: str
+    params: str,
+    timeout: float = 30
 ):
-    global preview_response_first, is_processing
+    global preview_response_first, is_processing, result_data
     
     # 使用锁防止重复执行
     with processing_lock:
@@ -306,7 +307,8 @@ def process_batch_http_request(
                 func_params = {
                     'api_url': api_url,
                     'headers': headers,
-                    'request_params': request_params
+                    'request_params': request_params,
+                    'timeout': timeout
                 }
 
                 # response = sync_http_request(api_url, request_params, headers)
@@ -370,13 +372,18 @@ def process_batch_http_request(
         
         def process_future(index, future):
             """处理单个future的结果"""
+            nonlocal completed_count
             try:
                 response = future.result()
                 results[index] = response
-                
-                # 使用线程安全的方式更新UI
-                threading.Thread(target=update_ui_with_result, args=(index, response), daemon=True).start()
-                
+
+                # 尝试使用线程更新UI，如果失败则直接调用
+                try:
+                    threading.Thread(target=update_ui_with_result, args=(index, response), daemon=True).start()
+                except RuntimeError:
+                    # 线程创建失败，直接在当前线程中更新UI
+                    update_ui_with_result(index, response)
+
             except Exception as e:
                 new_df.loc[index, 'response_time'] = None
                 new_df.loc[index, 'response_text'] = None
@@ -386,12 +393,10 @@ def process_batch_http_request(
                     progress_bar.value = completed_count
                     # 更新进度值文本显示
                     progress_text.value = f'<div style="text-align: center; color: #495057; font-size: 14px; margin-top: 5px;">{completed_count}/{total_rows}</div>'
-                    # 输出错误信息
-                    step005_output.append_stdout(f"❌ 行{index}: 执行失败 - {str(e)}\n")
                     # 更新进度条描述，显示进度值
                     progress_bar.description = f'处理进度: {completed_count}/{total_rows}'
-                    # 输出错误信息
-                    step005_output.append_stdout(f"❌ 行{index}: 执行失败 - {str(e)}\n")
+                # 输出错误信息（移到锁外面）
+                step005_output.append_stdout(f"❌ 行{index}: 执行失败 - {str(e)}\n")
         
         # 启动并发执行
         with ThreadPoolExecutor(max_workers=max_workers_selector.value) as executor:
@@ -453,6 +458,29 @@ def process_batch_http_request(
         return result_data
         
     except Exception as e:
+        # 异常时先保存已处理的数据（兜底机制）
+        try:
+            # 获取已处理的数据
+            processed_count = len(results)
+            if processed_count > 0:
+                # 清理NaN值
+                new_df = clean_dataframe_for_json(new_df)
+                # 保存到全局变量
+                result_data = new_df.to_dict('records')
+                # 立即保存到文件
+                output_dir = 'output'
+                if not os.path.exists(output_dir):
+                    os.makedirs(output_dir)
+                from datetime import datetime
+                timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+                filename = f"emergency_save_{timestamp}_{processed_count}rows.csv"
+                filepath = os.path.join(output_dir, filename)
+                new_df.to_csv(filepath, index=False)
+                logging.info(f"紧急保存完成！已保存 {processed_count} 条数据到: {filepath}")
+                step005_output.append_stdout(f"程序异常，但已紧急保存 {processed_count} 条数据到: {filepath}\n")
+        except Exception as save_error:
+            logging.error(f"紧急保存失败: {save_error}")
+
         logging.error(f"批量处理出错: {e}")
         step005_output.append_stdout(f"❌ 批量处理出错: {e}\n")
         return []
@@ -494,13 +522,14 @@ def on_process_batch_http_request_clicked(b):
     def execute_processing():
         try:
             result_data = process_batch_http_request(
-                df, 
-                columns_selector, 
-                True, 
-                [], 
-                get_api_url_by_name(api_name=step000_api_config_selector.value), 
+                df,
+                columns_selector,
+                True,
+                [],
+                get_api_url_by_name(api_name=step000_api_config_selector.value),
                 get_api_headers_by_name(api_name=step000_api_config_selector.value),
-                get_api_params_by_name(api_name=step000_api_config_selector.value)
+                get_api_params_by_name(api_name=step000_api_config_selector.value),
+                get_api_timeout_by_name(api_name=step000_api_config_selector.value)
             )
             
             # 在UI线程中更新结果

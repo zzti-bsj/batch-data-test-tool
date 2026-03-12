@@ -7,7 +7,7 @@ from ..tools.data_processing import read_dataframe_from_file, clean_dataframe_fo
 from ..tools.http_request import sync_http_request, parse_http_stream_false_response, parse_http_stream_true_response
 from ..tools.http_response import structure_request_params, parse_recall_result_special
 from ..tools import DATA_PROCESSING_METHODS
-from ..tools.get_config import get_api_url_name_list, get_api_params_placeholder_list_by_name, get_api_url_by_name, get_api_headers_by_name, get_api_params_by_name
+from ..tools.get_config import get_api_url_name_list, get_api_params_placeholder_list_by_name, get_api_url_by_name, get_api_headers_by_name, get_api_params_by_name, get_api_timeout_by_name
 from IPython.display import display
 
 # 全局数据
@@ -189,7 +189,8 @@ def process_batch_http_request(
     data_processing_methods: list,
     api_url: str,
     headers: dict,
-    params: str
+    params: str,
+    timeout: float = 30
 ):
     try:
         columns = df.columns.tolist()
@@ -222,7 +223,7 @@ def process_batch_http_request(
                 
                 # 3.2 请求response
                 # 只构建参数列表
-                response = sync_http_request(api_url, request_params, headers)
+                response = sync_http_request(api_url, request_params, headers, timeout)
                 
                 # 记录响应时间
                 if response is not None and hasattr(response, 'response_time'):
@@ -290,13 +291,14 @@ def on_process_batch_http_request_clicked(b):
         step005_output.clear_output()
         if df is not None and columns_selector is not None and step000_api_config_selector.value is not None:
             result_data = process_batch_http_request(
-                df, 
-                columns_selector, 
-                True, 
-                [], 
-                get_api_url_by_name(api_name=step000_api_config_selector.value), 
+                df,
+                columns_selector,
+                True,
+                [],
+                get_api_url_by_name(api_name=step000_api_config_selector.value),
                 get_api_headers_by_name(api_name=step000_api_config_selector.value),
-                get_api_params_by_name(api_name=step000_api_config_selector.value)
+                get_api_params_by_name(api_name=step000_api_config_selector.value),
+                get_api_timeout_by_name(api_name=step000_api_config_selector.value)
             )
             rd = pd.DataFrame(result_data)
             display(rd.head())

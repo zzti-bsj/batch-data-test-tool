@@ -92,7 +92,7 @@ def clean_dict_control_characters(data):
     else:
         return data
 
-def sync_http_request(api_url=None, request_params=None, headers=None):
+def sync_http_request(api_url=None, request_params=None, headers=None, timeout=30):
     """
     请求 http 的数据
     """
@@ -118,11 +118,11 @@ def sync_http_request(api_url=None, request_params=None, headers=None):
                 json_data = json.loads(cleaned_params)
                 logging.debug(f"JSON解析成功: {type(json_data)}")
                 # 使用json参数发送请求
-                response = requests.post(url=api_url, json=json_data, headers=headers)
+                response = requests.post(url=api_url, json=json_data, headers=headers, timeout=timeout)
             except json.JSONDecodeError as e:
                 logging.debug(f"JSON解析失败，作为普通字符串发送: {e}")
                 # 如果不是有效的JSON，作为普通字符串发送
-                response = requests.post(url=api_url, data=cleaned_params.encode('utf-8'), headers=headers)
+                response = requests.post(url=api_url, data=cleaned_params.encode('utf-8'), headers=headers, timeout=timeout)
         elif isinstance(request_params, dict):
             # 清理字典中的控制字符并序列化
             cleaned_params = clean_dict_control_characters(request_params)
@@ -141,21 +141,21 @@ def sync_http_request(api_url=None, request_params=None, headers=None):
                     json_str = final_json
                 
                 # 使用data参数发送已验证的JSON字符串
-                response = requests.post(url=api_url, data=json_str.encode('utf-8'), headers=headers)
+                response = requests.post(url=api_url, data=json_str.encode('utf-8'), headers=headers, timeout=timeout)
             except Exception as e:
                 logging.error(f"JSON序列化失败: {e}")
                 # 如果序列化失败，使用严格清理
                 try:
                     strict_cleaned = strict_clean_dict(cleaned_params)
                     json_str = json.dumps(strict_cleaned, ensure_ascii=True, separators=(',', ':'))
-                    response = requests.post(url=api_url, data=json_str.encode('utf-8'), headers=headers)
+                    response = requests.post(url=api_url, data=json_str.encode('utf-8'), headers=headers, timeout=timeout)
                 except Exception as e2:
                     logging.error(f"严格清理后仍然失败: {e2}")
                     return None
         else:
             # 其他类型直接发送
             logging.debug(f"其他类型参数: {type(request_params)}")
-            response = requests.post(url=api_url, data=request_params, headers=headers)
+            response = requests.post(url=api_url, data=request_params, headers=headers, timeout=timeout)
         
         # 记录请求结束时间并计算响应时间（秒）
         end_time = time.time()

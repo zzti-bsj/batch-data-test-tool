@@ -21,7 +21,16 @@ def read_dataframe_from_file(filepath):
     df = None
     # 判断文件类型
     if 'csv' in filepath:
-        df = pd.read_csv(filepath)
+        # 尝试多种编码方式读取CSV文件
+        encodings = ['utf-8', 'gbk', 'gb2312', 'latin-1']
+        for encoding in encodings:
+            try:
+                df = pd.read_csv(filepath, encoding=encoding)
+                break
+            except UnicodeDecodeError:
+                continue
+        if df is None:
+            raise ValueError(f"无法使用常见编码（{', '.join(encodings)}）读取文件: {filepath}")
     elif 'xlsx' in filepath:
         df = pd.read_excel(filepath)
     

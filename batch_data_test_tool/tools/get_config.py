@@ -3,7 +3,7 @@ import json
 from typing import List
 
 def get_api_url_name_list(config_file_path: str = 'config.json') -> List[str]:
-    with open(config_file_path, 'r') as f:
+    with open(config_file_path, 'r', encoding='utf-8') as f:
         configs = json.load(f)
     return [config['api_name'] for config in configs]
     
@@ -30,7 +30,7 @@ def get_api_params_placeholder_list_by_name(config_file_path: str = 'config.json
             for match in matches:
                 placeholder_list.append(match)
     
-    with open(config_file_path, 'r') as f:
+    with open(config_file_path, 'r', encoding='utf-8') as f:
         configs = json.load(f)
     
     # 根据api_name获取配置
@@ -51,7 +51,7 @@ def get_api_params_placeholder_list_by_name(config_file_path: str = 'config.json
     return unique_placeholders
 
 def get_api_url_by_name(config_file_path: str = 'config.json', api_name: str = 'test_api_name') -> str:
-    with open(config_file_path, 'r') as f:
+    with open(config_file_path, 'r', encoding='utf-8') as f:
         configs = json.load(f)
     for config in configs:
         if config['api_name'] == api_name:
@@ -59,7 +59,7 @@ def get_api_url_by_name(config_file_path: str = 'config.json', api_name: str = '
     return None
 
 def get_api_params_by_name(config_file_path: str = 'config.json', api_name: str = 'test_api_name') -> dict:
-    with open(config_file_path, 'r') as f:
+    with open(config_file_path, 'r', encoding='utf-8') as f:
         configs = json.load(f)
     for config in configs:
         if config['api_name'] == api_name:
@@ -67,9 +67,21 @@ def get_api_params_by_name(config_file_path: str = 'config.json', api_name: str 
     return None
 
 def get_api_headers_by_name(config_file_path: str = 'config.json', api_name: str = 'test_api_name') -> dict:
-    with open(config_file_path, 'r') as f:
+    with open(config_file_path, 'r', encoding='utf-8') as f:
         configs = json.load(f)
     for config in configs:
         if config['api_name'] == api_name:
             return config['headers']
     return None
+
+def get_api_timeout_by_name(config_file_path: str = 'config.json', api_name: str = 'test_api_name') -> float:
+    """
+    获取 API 配置的超时时间（秒）
+    如果配置中没有设置 timeout，默认返回 30 秒
+    """
+    with open(config_file_path, 'r', encoding='utf-8') as f:
+        configs = json.load(f)
+    for config in configs:
+        if config['api_name'] == api_name:
+            return config.get('timeout', 30)
+    return 30
